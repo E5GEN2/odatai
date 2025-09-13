@@ -188,15 +188,6 @@ export default function Home() {
 
       <div className="relative z-10 min-h-screen py-12 px-4">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-12 animate-fade-in-down">
-            <h1 className="text-6xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-cyan-400 to-purple-400 mb-4 tracking-tight">
-              YouTube Title Fetcher
-            </h1>
-            <p className="text-xl text-gray-400 font-light">
-              Extract video titles in bulk with style ✨
-            </p>
-          </div>
 
           {/* Main Card */}
           <div className="backdrop-blur-xl bg-gray-900/50 rounded-3xl shadow-2xl border border-gray-800 p-8 animate-fade-in">
