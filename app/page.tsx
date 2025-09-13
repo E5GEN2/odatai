@@ -19,6 +19,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [progress, setProgress] = useState<{current: number, total: number} | null>(null);
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -56,6 +57,7 @@ export default function Home() {
     setLoading(true);
     setError('');
     setVideos([]);
+    setProgress(null);
 
     if (!apiKey.trim()) {
       setError('Please enter your YouTube API key');
@@ -81,30 +83,51 @@ export default function Home() {
 
     try {
       const url = `https://www.googleapis.com/youtube/v3/videos`;
-      const params = {
-        part: 'snippet,contentDetails',
-        id: videoIds.map(v => v.id).join(','),
-        key: apiKey
-      };
+      const batchSize = 50; // YouTube API limit
+      const allVideoData: VideoData[] = [];
 
-      console.log('Fetching from YouTube API:', url);
-      console.log('Video IDs:', videoIds.map(v => v.id).join(','));
-      console.log('API Key length:', apiKey.length);
+      const totalBatches = Math.ceil(videoIds.length / batchSize);
+      console.log(`Processing ${videoIds.length} video IDs in ${totalBatches} batches of ${batchSize}`);
 
-      const response = await axios.get(url, { params });
+      // Process in batches of 50
+      for (let i = 0; i < videoIds.length; i += batchSize) {
+        const currentBatch = Math.floor(i/batchSize) + 1;
+        setProgress({ current: currentBatch, total: totalBatches });
 
-      const videoData: VideoData[] = response.data.items.map((item: any) => {
-        const originalVideo = videoIds.find(v => v.id === item.id);
-        return {
-          id: item.id,
-          title: item.snippet.title,
-          url: originalVideo?.originalUrl || `https://youtube.com/watch?v=${item.id}`,
-          channel: item.snippet.channelTitle,
-          duration: formatDuration(item.contentDetails.duration)
+        const batch = videoIds.slice(i, i + batchSize);
+        const params = {
+          part: 'snippet,contentDetails',
+          id: batch.map(v => v.id).join(','),
+          key: apiKey
         };
-      });
 
-      setVideos(videoData);
+        console.log(`Processing batch ${currentBatch}/${totalBatches}`);
+
+        const response = await axios.get(url, { params });
+
+        const batchVideoData: VideoData[] = response.data.items.map((item: any) => {
+          const originalVideo = batch.find(v => v.id === item.id);
+          return {
+            id: item.id,
+            title: item.snippet.title,
+            url: originalVideo?.originalUrl || `https://youtube.com/watch?v=${item.id}`,
+            channel: item.snippet.channelTitle,
+            duration: formatDuration(item.contentDetails.duration)
+          };
+        });
+
+        allVideoData.push(...batchVideoData);
+
+        // Update UI with current progress
+        setVideos([...allVideoData]);
+
+        // Small delay between batches to avoid rate limiting
+        if (i + batchSize < videoIds.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      setVideos(allVideoData);
 
       // Save API key to localStorage for convenience (optional)
       if (typeof window !== 'undefined') {
@@ -123,6 +146,7 @@ export default function Home() {
       }
     } finally {
       setLoading(false);
+      setProgress(null);
     }
   };
 
@@ -130,6 +154,7 @@ export default function Home() {
     setInputText('');
     setVideos([]);
     setError('');
+    setProgress(null);
   };
 
   const exportToCSV = () => {
@@ -251,6 +276,22 @@ https://www.youtube.com/shorts/abc123"
               </div>
             )}
 
+            {/* Progress Bar */}
+            {progress && (
+              <div className="mb-6">
+                <div className="flex justify-between text-sm text-gray-400 mb-2">
+                  <span>Processing batches...</span>
+                  <span>{progress.current} / {progress.total}</span>
+                </div>
+                <div className="w-full bg-gray-800 rounded-full h-2">
+                  <div
+                    className="bg-gradient-to-r from-purple-600 to-cyan-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-4 mb-8">
               <button
@@ -265,7 +306,7 @@ https://www.youtube.com/shorts/abc123"
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Fetching...
+                    {progress ? `Batch ${progress.current}/${progress.total}` : 'Fetching...'}
                   </span>
                 ) : (
                   '🚀 Fetch Titles'
