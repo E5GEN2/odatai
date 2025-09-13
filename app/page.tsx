@@ -20,6 +20,7 @@ export default function Home() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [progress, setProgress] = useState<{current: number, total: number} | null>(null);
+  const [appendMode, setAppendMode] = useState(false);
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -53,10 +54,12 @@ export default function Home() {
     return parts.join(' ') || '0s';
   };
 
-  const fetchVideoData = async () => {
+  const fetchVideoData = async (append: boolean = false) => {
     setLoading(true);
     setError('');
-    setVideos([]);
+    if (!append) {
+      setVideos([]);
+    }
     setProgress(null);
 
     if (!apiKey.trim()) {
@@ -67,16 +70,21 @@ export default function Home() {
 
     const lines = inputText.trim().split('\n').filter(line => line.trim());
     const videoIds: { id: string; originalUrl: string }[] = [];
+    const existingVideoIds = new Set(videos.map(v => v.id));
 
     for (const line of lines) {
       const videoId = extractVideoId(line.trim());
-      if (videoId) {
+      if (videoId && (!append || !existingVideoIds.has(videoId))) {
         videoIds.push({ id: videoId, originalUrl: line.trim() });
       }
     }
 
     if (videoIds.length === 0) {
-      setError('No valid YouTube URLs found');
+      if (append) {
+        setError('No new valid YouTube URLs found (duplicates filtered out)');
+      } else {
+        setError('No valid YouTube URLs found');
+      }
       setLoading(false);
       return;
     }
@@ -84,7 +92,7 @@ export default function Home() {
     try {
       const url = `https://www.googleapis.com/youtube/v3/videos`;
       const batchSize = 50; // YouTube API limit
-      const allVideoData: VideoData[] = [];
+      const allVideoData: VideoData[] = append ? [...videos] : [];
 
       const totalBatches = Math.ceil(videoIds.length / batchSize);
       console.log(`Processing ${videoIds.length} video IDs in ${totalBatches} batches of ${batchSize}`);
@@ -155,6 +163,7 @@ export default function Home() {
     setVideos([]);
     setError('');
     setProgress(null);
+    setAppendMode(false);
   };
 
   const exportToCSV = () => {
@@ -256,6 +265,14 @@ export default function Home() {
               <label className="block text-sm font-medium text-gray-300 mb-3">
                 📺 YouTube URLs (one per line)
               </label>
+              {videos.length > 0 && (
+                <div className="mb-3 p-3 bg-emerald-950/30 border border-emerald-800/30 rounded-xl">
+                  <p className="text-emerald-400 text-sm flex items-center gap-2">
+                    <span>💡</span>
+                    You have {videos.length} video{videos.length !== 1 ? 's' : ''} loaded. Use "Add More" to append new videos or "Fetch Titles" to start fresh.
+                  </p>
+                </div>
+              )}
               <textarea
                 className="w-full h-44 px-5 py-4 bg-black/50 backdrop-blur-md border border-gray-800 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 resize-none font-mono text-sm"
                 placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ
@@ -295,7 +312,7 @@ https://www.youtube.com/shorts/abc123"
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-4 mb-8">
               <button
-                onClick={fetchVideoData}
+                onClick={() => fetchVideoData(false)}
                 disabled={loading || !inputText.trim() || !apiKey.trim()}
                 className={`px-8 py-4 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 ${
                   loading || !inputText.trim() || !apiKey.trim()
@@ -312,6 +329,26 @@ https://www.youtube.com/shorts/abc123"
                   '🚀 Fetch Titles'
                 )}
               </button>
+              {videos.length > 0 && (
+                <button
+                  onClick={() => fetchVideoData(true)}
+                  disabled={loading || !inputText.trim() || !apiKey.trim()}
+                  className={`px-8 py-4 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 ${
+                    loading || !inputText.trim() || !apiKey.trim()
+                      ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-lg hover:shadow-emerald-500/25'
+                  }`}
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Appending...
+                    </span>
+                  ) : (
+                    '➕ Add More'
+                  )}
+                </button>
+              )}
               <button
                 onClick={clearAll}
                 className="px-8 py-4 bg-black/50 backdrop-blur-md border border-gray-800 text-white rounded-2xl hover:bg-gray-900/50 hover:border-gray-700 transition-all duration-300 font-semibold transform hover:scale-105"
