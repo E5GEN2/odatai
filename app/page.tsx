@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { performClustering, generateClusterSummaries, ClusteringResults, ClusterSummary } from '../utils/clustering';
+import { ClusteringResults, ClusterSummary } from '../utils/clustering';
 import { Word2VecConfig } from '../utils/word2vec';
 
 interface VideoData {
@@ -248,37 +248,32 @@ export default function Home() {
         handleUnknown: clusteringConfig.handleUnknown
       };
 
-      // Configure clustering
-      const clusteringSettings = {
-        k: clusteringConfig.k,
-        algorithm: clusteringConfig.algorithm as 'kmeans' | 'kmeans++' | 'hierarchical',
-        maxIterations: 100,
-        tolerance: 1e-4
-      };
+      console.log('Starting clustering with config:', { word2vecConfig, clusteringConfig });
 
-      console.log('Starting clustering with config:', { word2vecConfig, clusteringSettings });
-
-      // Perform clustering
-      const results = await performClustering(titles, word2vecConfig, clusteringSettings);
-
-      // Generate summaries
-      const processedTexts = await import('../utils/word2vec').then(module =>
-        module.prepareDataForClustering(titles, word2vecConfig)
-      );
-      const summaries = generateClusterSummaries(results, processedTexts);
-
-      setClusteringResults(results);
-      setClusterSummaries(summaries);
-
-      console.log('Clustering completed:', {
-        clusters: results.clusters.length,
-        totalVideos: results.statistics.totalVideos,
-        processingTime: results.statistics.processingTime
+      // Call API endpoint for clustering
+      const response = await axios.post('/api/clustering', {
+        titles,
+        word2vecConfig,
+        clusteringConfig
       });
+
+      if (response.data.success) {
+        setClusteringResults(response.data.results);
+        setClusterSummaries(response.data.summaries);
+
+        console.log('Clustering completed:', {
+          clusters: response.data.results.clusters.length,
+          totalVideos: response.data.results.statistics.totalVideos,
+          processingTime: response.data.results.statistics.processingTime
+        });
+      } else {
+        throw new Error(response.data.error || 'Clustering failed');
+      }
 
     } catch (err: any) {
       console.error('Clustering error:', err);
-      setClusteringError(`Clustering failed: ${err.message || 'Unknown error'}`);
+      const errorMessage = err.response?.data?.error || err.message || 'Unknown error';
+      setClusteringError(`Clustering failed: ${errorMessage}`);
     } finally {
       setIsClusteringLoading(false);
     }

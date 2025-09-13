@@ -13,14 +13,12 @@
     "compromise": "^14.14.4",
     "ml-distance": "^4.0.1",
     "ml-kmeans": "^6.0.0",
-    "ml-matrix": "^6.12.1",
     "natural": "^8.1.0",
     "next": "15.5.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "stemmer": "^2.0.1",
-    "stopwords": "^0.0.9",
-    "word2vec": "^1.1.5"
+    "stopwords": "^0.0.9"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
