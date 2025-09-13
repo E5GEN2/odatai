@@ -453,7 +453,7 @@ https://www.youtube.com/shorts/abc123"
           Clustering Parameters
         </h4>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Number of Clusters (k)
@@ -470,13 +470,62 @@ https://www.youtube.com/shorts/abc123"
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Algorithm Method
+              Clustering Algorithm
             </label>
             <select className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300">
               <option value="kmeans">K-Means</option>
-              <option value="kmeans++">K-Means++</option>
+              <option value="kmeans++" selected>K-Means++ (Recommended)</option>
               <option value="hierarchical">Hierarchical</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Word2Vec Approach
+            </label>
+            <select className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300">
+              <option value="pretrained">Pre-trained Embeddings (Fast)</option>
+              <option value="custom">Train on YouTube Data (Accurate)</option>
+              <option value="hybrid">Hybrid Approach</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Word2Vec Configuration */}
+        <div className="mt-6 p-4 bg-gradient-to-r from-indigo-950/20 to-purple-950/20 border border-indigo-800/30 rounded-xl">
+          <h5 className="text-md font-semibold text-white mb-3 flex items-center gap-2">
+            <span>🧠</span>
+            Word2Vec Configuration
+          </h5>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Embedding Dimensions
+              </label>
+              <select className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="50">50D (Fast)</option>
+                <option value="100" selected>100D (Balanced)</option>
+                <option value="200">200D (Detailed)</option>
+                <option value="300">300D (High Quality)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Aggregation Method
+              </label>
+              <select className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="mean">Mean (Average)</option>
+                <option value="sum">Sum</option>
+                <option value="max">Max Pooling</option>
+                <option value="tfidf">TF-IDF Weighted</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-400 p-2 bg-black/20 rounded-lg">
+            <strong>Current:</strong> Pre-trained Embeddings → Mean aggregation → 100D vectors
           </div>
         </div>
 
@@ -499,7 +548,7 @@ https://www.youtube.com/shorts/abc123"
             </label>
             <label className="flex items-center space-x-2">
               <input type="checkbox" className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500" />
-              <span className="text-gray-300 text-sm">Include bigrams</span>
+              <span className="text-gray-300 text-sm">Handle unknown words</span>
             </label>
           </div>
         </div>
