@@ -80,16 +80,18 @@ export default function Home() {
     }
 
     try {
-      const response = await axios.get(
-        `https://www.googleapis.com/youtube/v3/videos`,
-        {
-          params: {
-            part: 'snippet,contentDetails',
-            id: videoIds.map(v => v.id).join(','),
-            key: apiKey
-          }
-        }
-      );
+      const url = `https://www.googleapis.com/youtube/v3/videos`;
+      const params = {
+        part: 'snippet,contentDetails',
+        id: videoIds.map(v => v.id).join(','),
+        key: apiKey
+      };
+
+      console.log('Fetching from YouTube API:', url);
+      console.log('Video IDs:', videoIds.map(v => v.id).join(','));
+      console.log('API Key length:', apiKey.length);
+
+      const response = await axios.get(url, { params });
 
       const videoData: VideoData[] = response.data.items.map((item: any) => {
         const originalVideo = videoIds.find(v => v.id === item.id);
@@ -113,9 +115,11 @@ export default function Home() {
       if (err.response?.status === 403) {
         setError('API key invalid or quota exceeded. Please check your YouTube API key.');
       } else if (err.response?.status === 400) {
-        setError('Invalid request. Please check your API key and video URLs.');
+        setError('Invalid API key format. Please check your YouTube API key.');
+      } else if (err.message === 'Network Error' || !err.response) {
+        setError('Network error. This might be a CORS issue. Try refreshing the page or check your internet connection.');
       } else {
-        setError('Failed to fetch video data. Please try again.');
+        setError(`Failed to fetch video data: ${err.response?.data?.error?.message || err.message || 'Unknown error'}`);
       }
     } finally {
       setLoading(false);
