@@ -18,6 +18,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -153,6 +154,12 @@ export default function Home() {
     window.URL.revokeObjectURL(url);
   };
 
+  const copyToClipboard = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
   // Load API key from localStorage on mount
   useEffect(() => {
     const savedKey = localStorage.getItem('youtube_api_key');
@@ -162,146 +169,270 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-6">
-            YouTube Video Title Fetcher
-          </h1>
+    <main className="min-h-screen relative overflow-hidden">
+      {/* Animated gradient background */}
+      <div className="fixed inset-0 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+        <div className="absolute inset-0">
+          <div className="absolute top-0 -left-4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
+          <div className="absolute top-0 -right-4 w-96 h-96 bg-yellow-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
+          <div className="absolute -bottom-8 left-20 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000" />
+        </div>
+      </div>
 
-          <div className="mb-6">
-            <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 mb-2">
-              YouTube API Key
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="apiKey"
-                type={showApiKey ? "text" : "password"}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your YouTube Data API v3 key"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-              />
-              <button
-                onClick={() => setShowApiKey(!showApiKey)}
-                className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-              >
-                {showApiKey ? 'Hide' : 'Show'}
-              </button>
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              Get your API key from{' '}
-              <a
-                href="https://console.cloud.google.com/apis/credentials"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800"
-              >
-                Google Cloud Console
-              </a>
+      <div className="relative z-10 min-h-screen py-12 px-4">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-12 animate-fade-in-down">
+            <h1 className="text-6xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400 mb-4 tracking-tight">
+              YouTube Title Fetcher
+            </h1>
+            <p className="text-xl text-gray-300 font-light">
+              Extract video titles in bulk with style ✨
             </p>
           </div>
 
-          <div className="mb-6">
-            <label htmlFor="urls" className="block text-sm font-medium text-gray-700 mb-2">
-              Enter YouTube URLs (one per line)
-            </label>
-            <textarea
-              id="urls"
-              className="w-full h-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ
+          {/* Main Card */}
+          <div className="backdrop-blur-xl bg-white/10 rounded-3xl shadow-2xl border border-white/20 p-8 animate-fade-in">
+            {/* API Key Input */}
+            <div className="mb-8">
+              <label className="block text-sm font-medium text-gray-200 mb-3">
+                🔑 YouTube API Key
+              </label>
+              <div className="flex gap-3">
+                <div className="relative flex-1">
+                  <input
+                    type={showApiKey ? "text" : "password"}
+                    className="w-full px-5 py-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                    placeholder="Enter your YouTube Data API v3 key"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="px-6 py-4 bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-2xl hover:bg-white/20 transition-all duration-300 font-medium"
+                >
+                  {showApiKey ? '👁️' : '👁️‍🗨️'}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-gray-400">
+                Get your API key from{' '}
+                <a
+                  href="https://console.cloud.google.com/apis/credentials"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-purple-400 hover:text-purple-300 underline transition-colors"
+                >
+                  Google Cloud Console
+                </a>
+              </p>
+            </div>
+
+            {/* URL Input */}
+            <div className="mb-8">
+              <label className="block text-sm font-medium text-gray-200 mb-3">
+                📺 YouTube URLs (one per line)
+              </label>
+              <textarea
+                className="w-full h-44 px-5 py-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 resize-none"
+                placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ
 https://youtu.be/dQw4w9WgXcQ
 https://www.youtube.com/shorts/abc123"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-            />
-          </div>
-
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-red-600">{error}</p>
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+              />
             </div>
-          )}
 
-          <div className="flex gap-4 mb-6">
-            <button
-              onClick={fetchVideoData}
-              disabled={loading || !inputText.trim() || !apiKey.trim()}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? 'Fetching...' : 'Fetch Titles'}
-            </button>
-            <button
-              onClick={clearAll}
-              className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-            >
-              Clear All
-            </button>
-            {videos.length > 0 && (
+            {/* Error Display */}
+            {error && (
+              <div className="mb-6 p-4 bg-red-500/20 backdrop-blur-md border border-red-500/30 rounded-2xl animate-shake">
+                <p className="text-red-300 flex items-center gap-2">
+                  <span className="text-xl">⚠️</span>
+                  {error}
+                </p>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap gap-4 mb-8">
               <button
-                onClick={exportToCSV}
-                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                onClick={fetchVideoData}
+                disabled={loading || !inputText.trim() || !apiKey.trim()}
+                className={`px-8 py-4 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 ${
+                  loading || !inputText.trim() || !apiKey.trim()
+                    ? 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-purple-500/25'
+                }`}
               >
-                Export to CSV
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Fetching...
+                  </span>
+                ) : (
+                  '🚀 Fetch Titles'
+                )}
               </button>
+              <button
+                onClick={clearAll}
+                className="px-8 py-4 bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-2xl hover:bg-white/20 transition-all duration-300 font-semibold transform hover:scale-105"
+              >
+                🗑️ Clear All
+              </button>
+              {videos.length > 0 && (
+                <button
+                  onClick={exportToCSV}
+                  className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-2xl hover:from-green-700 hover:to-emerald-700 transition-all duration-300 font-semibold transform hover:scale-105 shadow-lg hover:shadow-green-500/25"
+                >
+                  📊 Export CSV
+                </button>
+              )}
+            </div>
+
+            {/* Results Table */}
+            {videos.length > 0 && (
+              <div className="animate-fade-in">
+                <div className="backdrop-blur-xl bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">#</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Title</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Channel</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Duration</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {videos.map((video, index) => (
+                          <tr
+                            key={video.id}
+                            className="hover:bg-white/5 transition-colors duration-200 animate-fade-in"
+                            style={{ animationDelay: `${index * 50}ms` }}
+                          >
+                            <td className="px-6 py-4 text-sm text-gray-400">
+                              {index + 1}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-sm text-white font-medium max-w-xs truncate">
+                                {video.title}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-sm text-gray-300">
+                                {video.channel}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                {video.duration}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={video.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-semibold rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 transform hover:scale-105"
+                                >
+                                  Watch
+                                </a>
+                                <button
+                                  onClick={() => copyToClipboard(video.title, index)}
+                                  className="inline-flex items-center px-3 py-2 bg-white/10 text-white text-xs font-semibold rounded-xl hover:bg-white/20 transition-all duration-300"
+                                >
+                                  {copiedIndex === index ? '✓' : '📋'}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="mt-4 text-center text-gray-400 text-sm">
+                  Found {videos.length} video{videos.length !== 1 ? 's' : ''}
+                </div>
+              </div>
             )}
           </div>
 
-          {videos.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      #
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Title
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Channel
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Duration
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Link
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {videos.map((video, index) => (
-                    <tr key={video.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {index + 1}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {video.title}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {video.channel}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {video.duration}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <a
-                          href={video.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          Watch
-                        </a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {/* Footer */}
+          <div className="text-center mt-12 text-gray-400 text-sm animate-fade-in">
+            <p>Built with Next.js • Styled with Tailwind CSS</p>
+          </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes blob {
+          0% {
+            transform: translate(0px, 0px) scale(1);
+          }
+          33% {
+            transform: translate(30px, -50px) scale(1.1);
+          }
+          66% {
+            transform: translate(-20px, 20px) scale(0.9);
+          }
+          100% {
+            transform: translate(0px, 0px) scale(1);
+          }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes fade-in-down {
+          from {
+            opacity: 0;
+            transform: translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes shake {
+          0%, 100% {
+            transform: translateX(0);
+          }
+          10%, 30%, 50%, 70%, 90% {
+            transform: translateX(-2px);
+          }
+          20%, 40%, 60%, 80% {
+            transform: translateX(2px);
+          }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.6s ease-out;
+        }
+        .animate-fade-in-down {
+          animation: fade-in-down 0.6s ease-out;
+        }
+        .animate-shake {
+          animation: shake 0.5s ease-in-out;
+        }
+      `}</style>
     </main>
   );
 }
