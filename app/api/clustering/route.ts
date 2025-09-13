@@ -47,7 +47,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       results,
-      summaries
+      summaries,
+      processedTexts // Include processed texts for visualization
     });
 
   } catch (error: any) {

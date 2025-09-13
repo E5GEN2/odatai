@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ClusteringResults, ClusterSummary } from '../utils/clustering';
 import { Word2VecConfig } from '../utils/word2vec';
+import ClusteringCanvas from '../components/ClusteringCanvas';
 
 interface VideoData {
   id: string;
@@ -672,7 +673,7 @@ https://www.youtube.com/shorts/abc123"
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-4">
+      <div className="flex justify-center">
         <button
           onClick={runClustering}
           disabled={videos.length === 0 || isClusteringLoading}
@@ -692,16 +693,6 @@ https://www.youtube.com/shorts/abc123"
           )}
         </button>
 
-        <button
-          disabled={videos.length === 0}
-          className={`px-8 py-4 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 ${
-            videos.length === 0
-              ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed'
-              : 'bg-gradient-to-r from-green-600 to-teal-600 text-white hover:from-green-700 hover:to-teal-700 shadow-lg hover:shadow-green-500/25'
-          }`}
-        >
-          📊 Visualize Clusters
-        </button>
       </div>
 
       {/* Error Display */}
@@ -743,6 +734,13 @@ https://www.youtube.com/shorts/abc123"
               </div>
             </div>
           </div>
+
+          {/* Interactive Visualization */}
+          <ClusteringCanvas
+            videos={videos}
+            clusteringResults={clusteringResults}
+            clusterSummaries={clusterSummaries}
+          />
 
           {/* Cluster Details */}
           <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-6">
