@@ -12,6 +12,7 @@ interface VideoData {
 }
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState<'data-mining' | 'analyze'>('data-mining');
   const [inputText, setInputText] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [videos, setVideos] = useState<VideoData[]>([]);
@@ -206,6 +207,340 @@ export default function Home() {
     }
   }, []);
 
+  const renderDataMiningTab = () => (
+    <>
+      {/* API Key Input */}
+      <div className="mb-8">
+        <label className="block text-sm font-medium text-gray-300 mb-3">
+          🔑 YouTube API Key
+        </label>
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <input
+              type={showApiKey ? "text" : "password"}
+              className="w-full px-5 py-4 bg-black/50 backdrop-blur-md border border-gray-800 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+              placeholder="Enter your YouTube Data API v3 key"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+            />
+          </div>
+          <button
+            onClick={() => setShowApiKey(!showApiKey)}
+            className="px-6 py-4 bg-black/50 backdrop-blur-md border border-gray-800 text-white rounded-2xl hover:bg-gray-900/50 hover:border-gray-700 transition-all duration-300 font-medium"
+          >
+            {showApiKey ? '👁️' : '👁️‍🗨️'}
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          Get your API key from{' '}
+          <a
+            href="https://console.cloud.google.com/apis/credentials"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-purple-400 hover:text-purple-300 underline transition-colors"
+          >
+            Google Cloud Console
+          </a>
+        </p>
+      </div>
+
+      {/* URL Input */}
+      <div className="mb-8">
+        <label className="block text-sm font-medium text-gray-300 mb-3">
+          📺 YouTube URLs (one per line)
+        </label>
+        {videos.length > 0 && (
+          <div className="mb-3 p-3 bg-emerald-950/30 border border-emerald-800/30 rounded-xl">
+            <p className="text-emerald-400 text-sm flex items-center gap-2">
+              <span>💡</span>
+              You have {videos.length} video{videos.length !== 1 ? 's' : ''} loaded. Use "Add More" to append new videos or "Fetch Titles" to start fresh.
+            </p>
+          </div>
+        )}
+        <textarea
+          className="w-full h-44 px-5 py-4 bg-black/50 backdrop-blur-md border border-gray-800 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 resize-none font-mono text-sm"
+          placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ
+https://youtu.be/dQw4w9WgXcQ
+https://www.youtube.com/shorts/abc123"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+        />
+      </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-950/50 backdrop-blur-md border border-red-900/50 rounded-2xl animate-shake">
+          <p className="text-red-400 flex items-center gap-2">
+            <span className="text-xl">⚠️</span>
+            {error}
+          </p>
+        </div>
+      )}
+
+      {/* Progress Bar */}
+      {progress && (
+        <div className="mb-6">
+          <div className="flex justify-between text-sm text-gray-400 mb-2">
+            <span>Processing batches...</span>
+            <span>{progress.current} / {progress.total}</span>
+          </div>
+          <div className="w-full bg-gray-800 rounded-full h-2">
+            <div
+              className="bg-gradient-to-r from-purple-600 to-cyan-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${(progress.current / progress.total) * 100}%` }}
+            ></div>
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-4 mb-8">
+        <button
+          onClick={() => fetchVideoData(false)}
+          disabled={loading || !inputText.trim() || !apiKey.trim()}
+          className={`px-8 py-4 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 ${
+            loading || !inputText.trim() || !apiKey.trim()
+              ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed'
+              : 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white hover:from-purple-700 hover:to-cyan-700 shadow-lg hover:shadow-purple-500/25'
+          }`}
+        >
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              {progress ? `Batch ${progress.current}/${progress.total}` : 'Fetching...'}
+            </span>
+          ) : (
+            '🚀 Fetch Titles'
+          )}
+        </button>
+        {videos.length > 0 && (
+          <button
+            onClick={() => fetchVideoData(true)}
+            disabled={loading || !inputText.trim() || !apiKey.trim()}
+            className={`px-8 py-4 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 ${
+              loading || !inputText.trim() || !apiKey.trim()
+                ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed'
+                : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-lg hover:shadow-emerald-500/25'
+            }`}
+          >
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Appending...
+              </span>
+            ) : (
+              '➕ Add More'
+            )}
+          </button>
+        )}
+        <button
+          onClick={clearAll}
+          className="px-8 py-4 bg-black/50 backdrop-blur-md border border-gray-800 text-white rounded-2xl hover:bg-gray-900/50 hover:border-gray-700 transition-all duration-300 font-semibold transform hover:scale-105"
+        >
+          🗑️ Clear All
+        </button>
+        {videos.length > 0 && (
+          <button
+            onClick={exportToCSV}
+            className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-2xl hover:from-green-700 hover:to-emerald-700 transition-all duration-300 font-semibold transform hover:scale-105 shadow-lg hover:shadow-green-500/25"
+          >
+            📊 Export CSV
+          </button>
+        )}
+      </div>
+
+      {/* Results Table */}
+      {videos.length > 0 && (
+        <div className="animate-fade-in">
+          <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">#</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Title</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Channel</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Duration</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/50">
+                  {videos.map((video, index) => (
+                    <tr
+                      key={video.id}
+                      className="hover:bg-gray-900/30 transition-colors duration-200 animate-fade-in"
+                      style={{ animationDelay: `${index * 50}ms` }}
+                    >
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {index + 1}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-200 font-medium max-w-xs truncate">
+                          {video.title}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-400">
+                          {video.channel}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-950/50 text-purple-300 border border-purple-800/50">
+                          {video.duration}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={video.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-xs font-semibold rounded-xl hover:from-cyan-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-105"
+                          >
+                            Watch
+                          </a>
+                          <button
+                            onClick={() => copyToClipboard(video.title, index)}
+                            className="inline-flex items-center px-3 py-2 bg-gray-800/50 text-white text-xs font-semibold rounded-xl hover:bg-gray-700/50 transition-all duration-300 border border-gray-700"
+                          >
+                            {copiedIndex === index ? '✓' : '📋'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="mt-4 text-center text-gray-500 text-sm">
+            Found {videos.length} video{videos.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  const renderAnalyzeTab = () => (
+    <div className="space-y-8">
+      {/* Data Source Info */}
+      <div className="bg-gradient-to-r from-blue-950/30 to-purple-950/30 border border-blue-800/30 rounded-2xl p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-2xl">🔬</span>
+          <h3 className="text-xl font-semibold text-white">K-Means Clustering Analysis</h3>
+        </div>
+        <p className="text-gray-400 mb-4">
+          Analyze your YouTube video titles using K-means clustering to discover content patterns and themes.
+        </p>
+
+        {videos.length > 0 ? (
+          <div className="flex items-center gap-2 text-emerald-400">
+            <span>✅</span>
+            <span>Ready to analyze {videos.length} video titles from Data Mining tab</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-amber-400">
+            <span>⚠️</span>
+            <span>No video data found. Please fetch some videos in the Data Mining tab first.</span>
+          </div>
+        )}
+      </div>
+
+      {/* Clustering Controls */}
+      <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-6">
+        <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <span>⚙️</span>
+          Clustering Parameters
+        </h4>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Number of Clusters (k)
+            </label>
+            <input
+              type="number"
+              min="2"
+              max="20"
+              defaultValue="5"
+              className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+              placeholder="Enter number of clusters"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Algorithm Method
+            </label>
+            <select className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300">
+              <option value="kmeans">K-Means</option>
+              <option value="kmeans++">K-Means++</option>
+              <option value="hierarchical">Hierarchical</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Text Processing Options
+          </label>
+          <div className="grid grid-cols-2 gap-4">
+            <label className="flex items-center space-x-2">
+              <input type="checkbox" defaultChecked className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500" />
+              <span className="text-gray-300 text-sm">Remove stop words</span>
+            </label>
+            <label className="flex items-center space-x-2">
+              <input type="checkbox" defaultChecked className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500" />
+              <span className="text-gray-300 text-sm">Stem words</span>
+            </label>
+            <label className="flex items-center space-x-2">
+              <input type="checkbox" defaultChecked className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500" />
+              <span className="text-gray-300 text-sm">Lowercase</span>
+            </label>
+            <label className="flex items-center space-x-2">
+              <input type="checkbox" className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500" />
+              <span className="text-gray-300 text-sm">Include bigrams</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-4">
+        <button
+          disabled={videos.length === 0}
+          className={`px-8 py-4 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 ${
+            videos.length === 0
+              ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed'
+              : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-blue-500/25'
+          }`}
+        >
+          🧮 Run K-Means Analysis
+        </button>
+
+        <button
+          disabled={videos.length === 0}
+          className={`px-8 py-4 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 ${
+            videos.length === 0
+              ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed'
+              : 'bg-gradient-to-r from-green-600 to-teal-600 text-white hover:from-green-700 hover:to-teal-700 shadow-lg hover:shadow-green-500/25'
+          }`}
+        >
+          📊 Visualize Clusters
+        </button>
+      </div>
+
+      {/* Results Placeholder */}
+      <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-8 text-center">
+        <div className="text-gray-500">
+          <span className="text-4xl mb-4 block">📈</span>
+          <p className="text-lg">Clustering results will appear here</p>
+          <p className="text-sm mt-2">Run analysis to see clusters, word clouds, and insights</p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <main className="min-h-screen relative overflow-hidden bg-black">
       {/* Subtle animated gradient overlay */}
@@ -222,218 +557,35 @@ export default function Home() {
 
       <div className="relative z-10 min-h-screen py-12 px-4">
         <div className="max-w-7xl mx-auto">
-
-          {/* Main Card */}
-          <div className="backdrop-blur-xl bg-gray-900/50 rounded-3xl shadow-2xl border border-gray-800 p-8 animate-fade-in">
-            {/* API Key Input */}
-            <div className="mb-8">
-              <label className="block text-sm font-medium text-gray-300 mb-3">
-                🔑 YouTube API Key
-              </label>
-              <div className="flex gap-3">
-                <div className="relative flex-1">
-                  <input
-                    type={showApiKey ? "text" : "password"}
-                    className="w-full px-5 py-4 bg-black/50 backdrop-blur-md border border-gray-800 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
-                    placeholder="Enter your YouTube Data API v3 key"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                  />
-                </div>
-                <button
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="px-6 py-4 bg-black/50 backdrop-blur-md border border-gray-800 text-white rounded-2xl hover:bg-gray-900/50 hover:border-gray-700 transition-all duration-300 font-medium"
-                >
-                  {showApiKey ? '👁️' : '👁️‍🗨️'}
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-gray-500">
-                Get your API key from{' '}
-                <a
-                  href="https://console.cloud.google.com/apis/credentials"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-purple-400 hover:text-purple-300 underline transition-colors"
-                >
-                  Google Cloud Console
-                </a>
-              </p>
-            </div>
-
-            {/* URL Input */}
-            <div className="mb-8">
-              <label className="block text-sm font-medium text-gray-300 mb-3">
-                📺 YouTube URLs (one per line)
-              </label>
-              {videos.length > 0 && (
-                <div className="mb-3 p-3 bg-emerald-950/30 border border-emerald-800/30 rounded-xl">
-                  <p className="text-emerald-400 text-sm flex items-center gap-2">
-                    <span>💡</span>
-                    You have {videos.length} video{videos.length !== 1 ? 's' : ''} loaded. Use "Add More" to append new videos or "Fetch Titles" to start fresh.
-                  </p>
-                </div>
-              )}
-              <textarea
-                className="w-full h-44 px-5 py-4 bg-black/50 backdrop-blur-md border border-gray-800 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 resize-none font-mono text-sm"
-                placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ
-https://youtu.be/dQw4w9WgXcQ
-https://www.youtube.com/shorts/abc123"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-              />
-            </div>
-
-            {/* Error Display */}
-            {error && (
-              <div className="mb-6 p-4 bg-red-950/50 backdrop-blur-md border border-red-900/50 rounded-2xl animate-shake">
-                <p className="text-red-400 flex items-center gap-2">
-                  <span className="text-xl">⚠️</span>
-                  {error}
-                </p>
-              </div>
-            )}
-
-            {/* Progress Bar */}
-            {progress && (
-              <div className="mb-6">
-                <div className="flex justify-between text-sm text-gray-400 mb-2">
-                  <span>Processing batches...</span>
-                  <span>{progress.current} / {progress.total}</span>
-                </div>
-                <div className="w-full bg-gray-800 rounded-full h-2">
-                  <div
-                    className="bg-gradient-to-r from-purple-600 to-cyan-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${(progress.current / progress.total) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex flex-wrap gap-4 mb-8">
+          {/* Tab Navigation */}
+          <div className="flex justify-center mb-8">
+            <div className="bg-black/50 backdrop-blur-md border border-gray-800 rounded-2xl p-1 flex gap-1">
               <button
-                onClick={() => fetchVideoData(false)}
-                disabled={loading || !inputText.trim() || !apiKey.trim()}
-                className={`px-8 py-4 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 ${
-                  loading || !inputText.trim() || !apiKey.trim()
-                    ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white hover:from-purple-700 hover:to-cyan-700 shadow-lg hover:shadow-purple-500/25'
+                onClick={() => setActiveTab('data-mining')}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  activeTab === 'data-mining'
+                    ? 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white shadow-lg'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
                 }`}
               >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    {progress ? `Batch ${progress.current}/${progress.total}` : 'Fetching...'}
-                  </span>
-                ) : (
-                  '🚀 Fetch Titles'
-                )}
+                🔍 Data Mining
               </button>
-              {videos.length > 0 && (
-                <button
-                  onClick={() => fetchVideoData(true)}
-                  disabled={loading || !inputText.trim() || !apiKey.trim()}
-                  className={`px-8 py-4 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 ${
-                    loading || !inputText.trim() || !apiKey.trim()
-                      ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-lg hover:shadow-emerald-500/25'
-                  }`}
-                >
-                  {loading ? (
-                    <span className="flex items-center gap-2">
-                      <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Appending...
-                    </span>
-                  ) : (
-                    '➕ Add More'
-                  )}
-                </button>
-              )}
               <button
-                onClick={clearAll}
-                className="px-8 py-4 bg-black/50 backdrop-blur-md border border-gray-800 text-white rounded-2xl hover:bg-gray-900/50 hover:border-gray-700 transition-all duration-300 font-semibold transform hover:scale-105"
+                onClick={() => setActiveTab('analyze')}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  activeTab === 'analyze'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                }`}
               >
-                🗑️ Clear All
+                📊 Analyze
               </button>
-              {videos.length > 0 && (
-                <button
-                  onClick={exportToCSV}
-                  className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-2xl hover:from-green-700 hover:to-emerald-700 transition-all duration-300 font-semibold transform hover:scale-105 shadow-lg hover:shadow-green-500/25"
-                >
-                  📊 Export CSV
-                </button>
-              )}
             </div>
+          </div>
 
-            {/* Results Table */}
-            {videos.length > 0 && (
-              <div className="animate-fade-in">
-                <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-gray-800">
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">#</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Title</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Channel</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Duration</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-800/50">
-                        {videos.map((video, index) => (
-                          <tr
-                            key={video.id}
-                            className="hover:bg-gray-900/30 transition-colors duration-200 animate-fade-in"
-                            style={{ animationDelay: `${index * 50}ms` }}
-                          >
-                            <td className="px-6 py-4 text-sm text-gray-500">
-                              {index + 1}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-sm text-gray-200 font-medium max-w-xs truncate">
-                                {video.title}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-sm text-gray-400">
-                                {video.channel}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-950/50 text-purple-300 border border-purple-800/50">
-                                {video.duration}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2">
-                                <a
-                                  href={video.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-xs font-semibold rounded-xl hover:from-cyan-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-105"
-                                >
-                                  Watch
-                                </a>
-                                <button
-                                  onClick={() => copyToClipboard(video.title, index)}
-                                  className="inline-flex items-center px-3 py-2 bg-gray-800/50 text-white text-xs font-semibold rounded-xl hover:bg-gray-700/50 transition-all duration-300 border border-gray-700"
-                                >
-                                  {copiedIndex === index ? '✓' : '📋'}
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div className="mt-4 text-center text-gray-500 text-sm">
-                  Found {videos.length} video{videos.length !== 1 ? 's' : ''}
-                </div>
-              </div>
-            )}
+          {/* Main Content */}
+          <div className="backdrop-blur-xl bg-gray-900/50 rounded-3xl shadow-2xl border border-gray-800 p-8 animate-fade-in">
+            {activeTab === 'data-mining' ? renderDataMiningTab() : renderAnalyzeTab()}
           </div>
 
           {/* Footer */}
