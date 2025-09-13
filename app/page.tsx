@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { performClustering, generateClusterSummaries, ClusteringResults, ClusterSummary } from '../utils/clustering';
+import { Word2VecConfig } from '../utils/word2vec';
 
 interface VideoData {
   id: string;
@@ -22,6 +24,23 @@ export default function Home() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [progress, setProgress] = useState<{current: number, total: number} | null>(null);
   const [appendMode, setAppendMode] = useState(false);
+
+  // Clustering state
+  const [clusteringResults, setClusteringResults] = useState<ClusteringResults | null>(null);
+  const [clusterSummaries, setClusterSummaries] = useState<ClusterSummary[]>([]);
+  const [isClusteringLoading, setIsClusteringLoading] = useState(false);
+  const [clusteringError, setClusteringError] = useState('');
+  const [clusteringConfig, setClusteringConfig] = useState({
+    k: 5,
+    algorithm: 'kmeans++',
+    word2vecApproach: 'pretrained',
+    dimensions: 100,
+    aggregation: 'mean',
+    removeStopwords: true,
+    stemWords: true,
+    lowercase: true,
+    handleUnknown: false
+  });
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -197,6 +216,72 @@ export default function Home() {
     navigator.clipboard.writeText(text);
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  // Run K-means clustering
+  const runClustering = async () => {
+    if (videos.length === 0) {
+      setClusteringError('No video data available. Please fetch videos first.');
+      return;
+    }
+
+    if (videos.length < clusteringConfig.k) {
+      setClusteringError(`Need at least ${clusteringConfig.k} videos for ${clusteringConfig.k} clusters.`);
+      return;
+    }
+
+    setIsClusteringLoading(true);
+    setClusteringError('');
+    setClusteringResults(null);
+
+    try {
+      const titles = videos.map(video => video.title);
+
+      // Configure Word2Vec
+      const word2vecConfig: Word2VecConfig = {
+        approach: clusteringConfig.word2vecApproach as 'pretrained' | 'custom' | 'hybrid',
+        dimensions: clusteringConfig.dimensions,
+        aggregation: clusteringConfig.aggregation as 'mean' | 'sum' | 'max' | 'tfidf',
+        removeStopwords: clusteringConfig.removeStopwords,
+        stemWords: clusteringConfig.stemWords,
+        lowercase: clusteringConfig.lowercase,
+        handleUnknown: clusteringConfig.handleUnknown
+      };
+
+      // Configure clustering
+      const clusteringSettings = {
+        k: clusteringConfig.k,
+        algorithm: clusteringConfig.algorithm as 'kmeans' | 'kmeans++' | 'hierarchical',
+        maxIterations: 100,
+        tolerance: 1e-4
+      };
+
+      console.log('Starting clustering with config:', { word2vecConfig, clusteringSettings });
+
+      // Perform clustering
+      const results = await performClustering(titles, word2vecConfig, clusteringSettings);
+
+      // Generate summaries
+      const processedTexts = await import('../utils/word2vec').then(module =>
+        module.prepareDataForClustering(titles, word2vecConfig)
+      );
+      const summaries = generateClusterSummaries(results, processedTexts);
+
+      setClusteringResults(results);
+      setClusterSummaries(summaries);
+
+      console.log('Clustering completed:', {
+        clusters: results.clusters.length,
+        totalVideos: results.statistics.totalVideos,
+        processingTime: results.statistics.processingTime
+      });
+
+    } catch (err: any) {
+      console.error('Clustering error:', err);
+      setClusteringError(`Clustering failed: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsClusteringLoading(false);
+    }
   };
 
   // Load API key from localStorage on mount
@@ -462,7 +547,8 @@ https://www.youtube.com/shorts/abc123"
               type="number"
               min="2"
               max="20"
-              defaultValue="5"
+              value={clusteringConfig.k}
+              onChange={(e) => setClusteringConfig(prev => ({ ...prev, k: parseInt(e.target.value) || 5 }))}
               className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
               placeholder="Enter number of clusters"
             />
@@ -472,9 +558,13 @@ https://www.youtube.com/shorts/abc123"
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Clustering Algorithm
             </label>
-            <select className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300">
+            <select
+              value={clusteringConfig.algorithm}
+              onChange={(e) => setClusteringConfig(prev => ({ ...prev, algorithm: e.target.value }))}
+              className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+            >
               <option value="kmeans">K-Means</option>
-              <option value="kmeans++" selected>K-Means++ (Recommended)</option>
+              <option value="kmeans++">K-Means++ (Recommended)</option>
               <option value="hierarchical">Hierarchical</option>
             </select>
           </div>
@@ -483,7 +573,11 @@ https://www.youtube.com/shorts/abc123"
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Word2Vec Approach
             </label>
-            <select className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300">
+            <select
+              value={clusteringConfig.word2vecApproach}
+              onChange={(e) => setClusteringConfig(prev => ({ ...prev, word2vecApproach: e.target.value }))}
+              className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+            >
               <option value="pretrained">Pre-trained Embeddings (Fast)</option>
               <option value="custom">Train on YouTube Data (Accurate)</option>
               <option value="hybrid">Hybrid Approach</option>
@@ -503,9 +597,13 @@ https://www.youtube.com/shorts/abc123"
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Embedding Dimensions
               </label>
-              <select className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <select
+                value={clusteringConfig.dimensions}
+                onChange={(e) => setClusteringConfig(prev => ({ ...prev, dimensions: parseInt(e.target.value) }))}
+                className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
                 <option value="50">50D (Fast)</option>
-                <option value="100" selected>100D (Balanced)</option>
+                <option value="100">100D (Balanced)</option>
                 <option value="200">200D (Detailed)</option>
                 <option value="300">300D (High Quality)</option>
               </select>
@@ -515,7 +613,11 @@ https://www.youtube.com/shorts/abc123"
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Aggregation Method
               </label>
-              <select className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <select
+                value={clusteringConfig.aggregation}
+                onChange={(e) => setClusteringConfig(prev => ({ ...prev, aggregation: e.target.value }))}
+                className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
                 <option value="mean">Mean (Average)</option>
                 <option value="sum">Sum</option>
                 <option value="max">Max Pooling</option>
@@ -535,19 +637,39 @@ https://www.youtube.com/shorts/abc123"
           </label>
           <div className="grid grid-cols-2 gap-4">
             <label className="flex items-center space-x-2">
-              <input type="checkbox" defaultChecked className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500" />
+              <input
+                type="checkbox"
+                checked={clusteringConfig.removeStopwords}
+                onChange={(e) => setClusteringConfig(prev => ({ ...prev, removeStopwords: e.target.checked }))}
+                className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500"
+              />
               <span className="text-gray-300 text-sm">Remove stop words</span>
             </label>
             <label className="flex items-center space-x-2">
-              <input type="checkbox" defaultChecked className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500" />
+              <input
+                type="checkbox"
+                checked={clusteringConfig.stemWords}
+                onChange={(e) => setClusteringConfig(prev => ({ ...prev, stemWords: e.target.checked }))}
+                className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500"
+              />
               <span className="text-gray-300 text-sm">Stem words</span>
             </label>
             <label className="flex items-center space-x-2">
-              <input type="checkbox" defaultChecked className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500" />
+              <input
+                type="checkbox"
+                checked={clusteringConfig.lowercase}
+                onChange={(e) => setClusteringConfig(prev => ({ ...prev, lowercase: e.target.checked }))}
+                className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500"
+              />
               <span className="text-gray-300 text-sm">Lowercase</span>
             </label>
             <label className="flex items-center space-x-2">
-              <input type="checkbox" className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500" />
+              <input
+                type="checkbox"
+                checked={clusteringConfig.handleUnknown}
+                onChange={(e) => setClusteringConfig(prev => ({ ...prev, handleUnknown: e.target.checked }))}
+                className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500"
+              />
               <span className="text-gray-300 text-sm">Handle unknown words</span>
             </label>
           </div>
@@ -557,14 +679,22 @@ https://www.youtube.com/shorts/abc123"
       {/* Action Buttons */}
       <div className="flex gap-4">
         <button
-          disabled={videos.length === 0}
+          onClick={runClustering}
+          disabled={videos.length === 0 || isClusteringLoading}
           className={`px-8 py-4 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 ${
-            videos.length === 0
+            videos.length === 0 || isClusteringLoading
               ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed'
               : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-blue-500/25'
           }`}
         >
-          🧮 Run K-Means Analysis
+          {isClusteringLoading ? (
+            <span className="flex items-center gap-2">
+              <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Analyzing...
+            </span>
+          ) : (
+            '🧮 Run K-Means Analysis'
+          )}
         </button>
 
         <button
@@ -579,14 +709,97 @@ https://www.youtube.com/shorts/abc123"
         </button>
       </div>
 
-      {/* Results Placeholder */}
-      <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-8 text-center">
-        <div className="text-gray-500">
-          <span className="text-4xl mb-4 block">📈</span>
-          <p className="text-lg">Clustering results will appear here</p>
-          <p className="text-sm mt-2">Run analysis to see clusters, word clouds, and insights</p>
+      {/* Error Display */}
+      {clusteringError && (
+        <div className="bg-red-950/30 border border-red-800/50 rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-red-400 text-xl">⚠️</span>
+            <h4 className="text-red-300 font-semibold">Clustering Error</h4>
+          </div>
+          <p className="text-red-200 text-sm">{clusteringError}</p>
         </div>
-      </div>
+      )}
+
+      {/* Results Display */}
+      {clusteringResults ? (
+        <div className="space-y-6">
+          {/* Summary Statistics */}
+          <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-6">
+            <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <span>📊</span>
+              Clustering Summary
+            </h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-400">{clusteringResults.clusters.length}</div>
+                <div className="text-sm text-gray-400">Clusters</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-400">{clusteringResults.statistics.totalVideos}</div>
+                <div className="text-sm text-gray-400">Videos</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-400">{clusteringResults.statistics.avgCoverage.toFixed(1)}%</div>
+                <div className="text-sm text-gray-400">Word Coverage</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-400">{clusteringResults.statistics.processingTime}ms</div>
+                <div className="text-sm text-gray-400">Processing Time</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Cluster Details */}
+          <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-6">
+            <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <span>🎯</span>
+              Cluster Analysis
+            </h4>
+            <div className="space-y-4">
+              {clusterSummaries.map((summary) => (
+                <div key={summary.id} className="bg-gray-900/50 rounded-xl p-4 border border-gray-700">
+                  <div className="flex justify-between items-start mb-3">
+                    <h5 className="text-white font-semibold">Cluster {summary.id + 1}</h5>
+                    <span className="text-xs px-2 py-1 bg-blue-600/20 text-blue-300 rounded-full border border-blue-600/30">
+                      {summary.size} videos
+                    </span>
+                  </div>
+
+                  <div className="mb-3">
+                    <h6 className="text-gray-300 text-sm font-medium mb-1">Top Keywords:</h6>
+                    <div className="flex flex-wrap gap-1">
+                      {summary.topWords.map((word, index) => (
+                        <span key={index} className="text-xs px-2 py-1 bg-purple-600/20 text-purple-300 rounded border border-purple-600/30">
+                          {word}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h6 className="text-gray-300 text-sm font-medium mb-1">Example Titles:</h6>
+                    <div className="space-y-1">
+                      {summary.examples.map((example, index) => (
+                        <div key={index} className="text-xs text-gray-400 italic">
+                          • {example}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-8 text-center">
+          <div className="text-gray-500">
+            <span className="text-4xl mb-4 block">📈</span>
+            <p className="text-lg">Clustering results will appear here</p>
+            <p className="text-sm mt-2">Run analysis to see clusters, word clouds, and insights</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 
