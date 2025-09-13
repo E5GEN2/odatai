@@ -169,41 +169,43 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen relative overflow-hidden">
-      {/* Animated gradient background */}
-      <div className="fixed inset-0 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-        <div className="absolute inset-0">
-          <div className="absolute top-0 -left-4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
-          <div className="absolute top-0 -right-4 w-96 h-96 bg-yellow-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
-          <div className="absolute -bottom-8 left-20 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000" />
+    <main className="min-h-screen relative overflow-hidden bg-black">
+      {/* Subtle animated gradient overlay */}
+      <div className="fixed inset-0">
+        <div className="absolute inset-0 bg-black" />
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-0 -left-4 w-96 h-96 bg-purple-600 rounded-full mix-blend-screen filter blur-3xl animate-blob" />
+          <div className="absolute top-0 -right-4 w-96 h-96 bg-cyan-600 rounded-full mix-blend-screen filter blur-3xl animate-blob animation-delay-2000" />
+          <div className="absolute -bottom-8 left-20 w-96 h-96 bg-indigo-600 rounded-full mix-blend-screen filter blur-3xl animate-blob animation-delay-4000" />
         </div>
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]" />
       </div>
 
       <div className="relative z-10 min-h-screen py-12 px-4">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12 animate-fade-in-down">
-            <h1 className="text-6xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400 mb-4 tracking-tight">
+            <h1 className="text-6xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-cyan-400 to-purple-400 mb-4 tracking-tight">
               YouTube Title Fetcher
             </h1>
-            <p className="text-xl text-gray-300 font-light">
+            <p className="text-xl text-gray-400 font-light">
               Extract video titles in bulk with style ✨
             </p>
           </div>
 
           {/* Main Card */}
-          <div className="backdrop-blur-xl bg-white/10 rounded-3xl shadow-2xl border border-white/20 p-8 animate-fade-in">
+          <div className="backdrop-blur-xl bg-gray-900/50 rounded-3xl shadow-2xl border border-gray-800 p-8 animate-fade-in">
             {/* API Key Input */}
             <div className="mb-8">
-              <label className="block text-sm font-medium text-gray-200 mb-3">
+              <label className="block text-sm font-medium text-gray-300 mb-3">
                 🔑 YouTube API Key
               </label>
               <div className="flex gap-3">
                 <div className="relative flex-1">
                   <input
                     type={showApiKey ? "text" : "password"}
-                    className="w-full px-5 py-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                    className="w-full px-5 py-4 bg-black/50 backdrop-blur-md border border-gray-800 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
                     placeholder="Enter your YouTube Data API v3 key"
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
@@ -211,12 +213,12 @@ export default function Home() {
                 </div>
                 <button
                   onClick={() => setShowApiKey(!showApiKey)}
-                  className="px-6 py-4 bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-2xl hover:bg-white/20 transition-all duration-300 font-medium"
+                  className="px-6 py-4 bg-black/50 backdrop-blur-md border border-gray-800 text-white rounded-2xl hover:bg-gray-900/50 hover:border-gray-700 transition-all duration-300 font-medium"
                 >
                   {showApiKey ? '👁️' : '👁️‍🗨️'}
                 </button>
               </div>
-              <p className="mt-2 text-xs text-gray-400">
+              <p className="mt-2 text-xs text-gray-500">
                 Get your API key from{' '}
                 <a
                   href="https://console.cloud.google.com/apis/credentials"
@@ -231,11 +233,11 @@ export default function Home() {
 
             {/* URL Input */}
             <div className="mb-8">
-              <label className="block text-sm font-medium text-gray-200 mb-3">
+              <label className="block text-sm font-medium text-gray-300 mb-3">
                 📺 YouTube URLs (one per line)
               </label>
               <textarea
-                className="w-full h-44 px-5 py-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 resize-none"
+                className="w-full h-44 px-5 py-4 bg-black/50 backdrop-blur-md border border-gray-800 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 resize-none font-mono text-sm"
                 placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ
 https://youtu.be/dQw4w9WgXcQ
 https://www.youtube.com/shorts/abc123"
@@ -246,8 +248,8 @@ https://www.youtube.com/shorts/abc123"
 
             {/* Error Display */}
             {error && (
-              <div className="mb-6 p-4 bg-red-500/20 backdrop-blur-md border border-red-500/30 rounded-2xl animate-shake">
-                <p className="text-red-300 flex items-center gap-2">
+              <div className="mb-6 p-4 bg-red-950/50 backdrop-blur-md border border-red-900/50 rounded-2xl animate-shake">
+                <p className="text-red-400 flex items-center gap-2">
                   <span className="text-xl">⚠️</span>
                   {error}
                 </p>
@@ -261,8 +263,8 @@ https://www.youtube.com/shorts/abc123"
                 disabled={loading || !inputText.trim() || !apiKey.trim()}
                 className={`px-8 py-4 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-105 ${
                   loading || !inputText.trim() || !apiKey.trim()
-                    ? 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-purple-500/25'
+                    ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white hover:from-purple-700 hover:to-cyan-700 shadow-lg hover:shadow-purple-500/25'
                 }`}
               >
                 {loading ? (
@@ -276,7 +278,7 @@ https://www.youtube.com/shorts/abc123"
               </button>
               <button
                 onClick={clearAll}
-                className="px-8 py-4 bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-2xl hover:bg-white/20 transition-all duration-300 font-semibold transform hover:scale-105"
+                className="px-8 py-4 bg-black/50 backdrop-blur-md border border-gray-800 text-white rounded-2xl hover:bg-gray-900/50 hover:border-gray-700 transition-all duration-300 font-semibold transform hover:scale-105"
               >
                 🗑️ Clear All
               </button>
@@ -293,40 +295,40 @@ https://www.youtube.com/shorts/abc123"
             {/* Results Table */}
             {videos.length > 0 && (
               <div className="animate-fade-in">
-                <div className="backdrop-blur-xl bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+                <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-white/10">
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">#</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Title</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Channel</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Duration</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-300 uppercase tracking-wider">Actions</th>
+                        <tr className="border-b border-gray-800">
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">#</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Title</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Channel</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Duration</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-white/5">
+                      <tbody className="divide-y divide-gray-800/50">
                         {videos.map((video, index) => (
                           <tr
                             key={video.id}
-                            className="hover:bg-white/5 transition-colors duration-200 animate-fade-in"
+                            className="hover:bg-gray-900/30 transition-colors duration-200 animate-fade-in"
                             style={{ animationDelay: `${index * 50}ms` }}
                           >
-                            <td className="px-6 py-4 text-sm text-gray-400">
+                            <td className="px-6 py-4 text-sm text-gray-500">
                               {index + 1}
                             </td>
                             <td className="px-6 py-4">
-                              <div className="text-sm text-white font-medium max-w-xs truncate">
+                              <div className="text-sm text-gray-200 font-medium max-w-xs truncate">
                                 {video.title}
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <div className="text-sm text-gray-300">
+                              <div className="text-sm text-gray-400">
                                 {video.channel}
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-950/50 text-purple-300 border border-purple-800/50">
                                 {video.duration}
                               </span>
                             </td>
@@ -336,13 +338,13 @@ https://www.youtube.com/shorts/abc123"
                                   href={video.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-semibold rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 transform hover:scale-105"
+                                  className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-xs font-semibold rounded-xl hover:from-cyan-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-105"
                                 >
                                   Watch
                                 </a>
                                 <button
                                   onClick={() => copyToClipboard(video.title, index)}
-                                  className="inline-flex items-center px-3 py-2 bg-white/10 text-white text-xs font-semibold rounded-xl hover:bg-white/20 transition-all duration-300"
+                                  className="inline-flex items-center px-3 py-2 bg-gray-800/50 text-white text-xs font-semibold rounded-xl hover:bg-gray-700/50 transition-all duration-300 border border-gray-700"
                                 >
                                   {copiedIndex === index ? '✓' : '📋'}
                                 </button>
@@ -354,7 +356,7 @@ https://www.youtube.com/shorts/abc123"
                     </table>
                   </div>
                 </div>
-                <div className="mt-4 text-center text-gray-400 text-sm">
+                <div className="mt-4 text-center text-gray-500 text-sm">
                   Found {videos.length} video{videos.length !== 1 ? 's' : ''}
                 </div>
               </div>
@@ -362,7 +364,7 @@ https://www.youtube.com/shorts/abc123"
           </div>
 
           {/* Footer */}
-          <div className="text-center mt-12 text-gray-400 text-sm animate-fade-in">
+          <div className="text-center mt-12 text-gray-600 text-sm animate-fade-in">
             <p>Built with Next.js • Styled with Tailwind CSS</p>
           </div>
         </div>
