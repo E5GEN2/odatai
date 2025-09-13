@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@types/natural": "^5.1.5",
     "axios": "^1.12.1",
     "compromise": "^14.14.4",
     "ml-distance": "^4.0.1",

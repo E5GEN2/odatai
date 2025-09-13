@@ -1,6 +1,5 @@
 // K-means clustering utilities with Word2Vec integration
-import kmeans from 'ml-kmeans';
-import { Matrix } from 'ml-matrix';
+import { kmeans } from 'ml-kmeans';
 import {
   Word2VecConfig,
   ProcessedText,
@@ -59,13 +58,12 @@ export async function performClustering(
 
   // Extract vectors for clustering
   const vectors = processedTexts.map(pt => pt.vector);
-  const matrix = new Matrix(vectors);
 
   // Step 2: Perform K-means clustering
   console.log(`Running ${clusteringConfig.algorithm} clustering...`);
   const clusteringStartTime = Date.now();
 
-  const result = kmeans(matrix, clusteringConfig.k, {
+  const result = kmeans(vectors, clusteringConfig.k, {
     initialization: clusteringConfig.algorithm === 'kmeans++' ? 'kmeans++' : 'random',
     maxIterations: clusteringConfig.maxIterations || 100,
     tolerance: clusteringConfig.tolerance || 1e-4
@@ -75,12 +73,16 @@ export async function performClustering(
 
   // Step 3: Organize results
   const clusters: ClusterResult[][] = Array.from({ length: clusteringConfig.k }, () => []);
+  let totalInertia = 0;
 
   result.clusters.forEach((clusterId: number, index: number) => {
     const distance = calculateDistanceToCentroid(
       vectors[index],
       result.centroids[clusterId]
     );
+
+    // Add to total inertia (within-cluster sum of squares)
+    totalInertia += distance * distance;
 
     clusters[clusterId].push({
       clusterId,
@@ -101,7 +103,7 @@ export async function performClustering(
   return {
     clusters,
     centroids: result.centroids,
-    inertia: result.inertia || 0,
+    inertia: totalInertia,
     iterations: result.iterations,
     convergenceTime: clusteringTime,
     statistics: {
@@ -236,14 +238,21 @@ export function findOptimalClusters(
   maxK: number = 10
 ): { k: number; inertias: number[]; elbowScore: number } {
   const inertias: number[] = [];
-  const matrix = new Matrix(vectors);
 
   for (let k = 2; k <= maxK; k++) {
-    const result = kmeans(matrix, k, {
+    const result = kmeans(vectors, k, {
       initialization: 'kmeans++',
       maxIterations: 50
     });
-    inertias.push(result.inertia || 0);
+
+    // Calculate inertia manually
+    let totalInertia = 0;
+    result.clusters.forEach((clusterId: number, index: number) => {
+      const distance = calculateDistanceToCentroid(vectors[index], result.centroids[clusterId]);
+      totalInertia += distance * distance;
+    });
+
+    inertias.push(totalInertia);
   }
 
   // Simple elbow detection (could be improved)

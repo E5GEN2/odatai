@@ -1,6 +1,8 @@
 // Word2Vec utilities for YouTube title clustering
 import * as natural from 'natural';
+// @ts-ignore - No types available for stopwords
 import { removeStopwords, eng } from 'stopwords';
+// @ts-ignore - No types available for stemmer
 import stemmer from 'stemmer';
 
 // Pre-trained word embeddings (GloVe-style) - subset for common words
@@ -66,7 +68,8 @@ export function preprocessText(
   }
 
   // Tokenize
-  let tokens = natural.WordTokenizer.tokenize(processed) || [];
+  const tokenizer = new natural.WordTokenizer();
+  let tokens = tokenizer.tokenize(processed) || [];
 
   // Remove punctuation and numbers
   tokens = tokens.filter(token => /^[a-zA-Z]+$/.test(token));
