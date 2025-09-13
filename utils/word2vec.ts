@@ -3,7 +3,7 @@ import * as natural from 'natural';
 // @ts-ignore - No types available for stopwords
 import { removeStopwords, eng } from 'stopwords';
 // @ts-ignore - No types available for stemmer
-import stemmer from 'stemmer';
+import { stemmer } from 'stemmer';
 
 // Pre-trained word embeddings (GloVe-style) - subset for common words
 // In production, this would be loaded from a larger embeddings file
