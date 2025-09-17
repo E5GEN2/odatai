@@ -4,12 +4,18 @@ export interface Point2D {
   y: number;
 }
 
+export interface Point3D {
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface ProcessedVideo {
   id: string;
   title: string;
   vector: number[];
   clusterId: number;
-  position: Point2D;
+  position: Point2D | Point3D;
 }
 
 // Simple PCA implementation to reduce high-dimensional vectors to 2D
@@ -69,6 +75,62 @@ export function performPCA(vectors: number[][]): Point2D[] {
   return projectedPoints.map(point => ({
     x: ((point.x - xMin) / xRange) * 800 + 100, // Scale to canvas size with padding
     y: ((point.y - yMin) / yRange) * 600 + 100
+  }));
+}
+
+// Simple PCA implementation to reduce high-dimensional vectors to 3D
+export function performPCA3D(vectors: number[][], canvasSize?: { width: number; height: number; depth?: number }): Point3D[] {
+  if (vectors.length === 0) return [];
+
+  const numSamples = vectors.length;
+  const numFeatures = vectors[0].length;
+
+  // Step 1: Calculate mean vector
+  const mean = new Array(numFeatures).fill(0);
+  for (const vector of vectors) {
+    for (let i = 0; i < numFeatures; i++) {
+      mean[i] += vector[i];
+    }
+  }
+  for (let i = 0; i < numFeatures; i++) {
+    mean[i] /= numSamples;
+  }
+
+  // Step 2: Center the data (subtract mean)
+  const centeredData = vectors.map(vector =>
+    vector.map((value, i) => value - mean[i])
+  );
+
+  // Step 3: Simple approximation - use first three features as principal components
+  const projectedPoints: Point3D[] = centeredData.map(dataPoint => ({
+    x: dataPoint[0] || 0,
+    y: dataPoint[1] || 0,
+    z: dataPoint[2] || 0
+  }));
+
+  // Normalize to reasonable 3D space coordinates
+  const xValues = projectedPoints.map(p => p.x);
+  const yValues = projectedPoints.map(p => p.y);
+  const zValues = projectedPoints.map(p => p.z);
+
+  const xMin = Math.min(...xValues);
+  const xMax = Math.max(...xValues);
+  const yMin = Math.min(...yValues);
+  const yMax = Math.max(...yValues);
+  const zMin = Math.min(...zValues);
+  const zMax = Math.max(...zValues);
+
+  const xRange = xMax - xMin || 1;
+  const yRange = yMax - yMin || 1;
+  const zRange = zMax - zMin || 1;
+
+  // Scale to 3D space (centered around origin)
+  const scaleSize = canvasSize ? Math.min(canvasSize.width, canvasSize.height) * 0.4 : 400;
+
+  return projectedPoints.map(point => ({
+    x: ((point.x - xMin) / xRange - 0.5) * scaleSize,
+    y: ((point.y - yMin) / yRange - 0.5) * scaleSize,
+    z: ((point.z - zMin) / zRange - 0.5) * scaleSize
   }));
 }
 

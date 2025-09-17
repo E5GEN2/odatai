@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@types/natural": "^5.1.5",
+    "@types/three": "^0.180.0",
     "axios": "^1.12.1",
     "compromise": "^14.14.4",
     "ml-distance": "^4.0.1",
@@ -18,7 +19,8 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "stemmer": "^2.0.1",
-    "stopwords": "^0.0.9"
+    "stopwords": "^0.0.9",
+    "three": "^0.180.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

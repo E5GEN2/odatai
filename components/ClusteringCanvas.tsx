@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ProcessedVideo, positionBySimilarity, performPCA } from '../utils/dimensionality-reduction';
 import FullscreenCanvas from './FullscreenCanvas';
 import ExportControls from './ExportControls';
+import Clustering3D from './Clustering3D';
 
 interface ClusteringCanvasProps {
   videos: { id: string; title: string }[];
@@ -42,6 +43,7 @@ export default function ClusteringCanvas({ videos, clusteringResults, clusterSum
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
+  const [is3DOpen, setIs3DOpen] = useState(false);
 
   // Initialize video shapes with positions based on embeddings
   useEffect(() => {
@@ -292,13 +294,23 @@ export default function ClusteringCanvas({ videos, clusteringResults, clusterSum
           Videos positioned by semantic similarity. Hover to see titles, drag shapes to reposition, click+drag canvas to pan, scroll to zoom.
         </p>
 
-        <button
-          onClick={() => setIsFullscreenOpen(true)}
-          className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 font-medium text-sm flex items-center gap-2"
-        >
-          <span>⛶</span>
-          Enter Fullscreen
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsFullscreenOpen(true)}
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 font-medium text-sm flex items-center gap-2"
+          >
+            <span>⛶</span>
+            Fullscreen
+          </button>
+
+          <button
+            onClick={() => setIs3DOpen(true)}
+            className="px-4 py-2 bg-gradient-to-r from-green-600 to-cyan-600 text-white rounded-lg hover:from-green-700 hover:to-cyan-700 transition-all duration-300 font-medium text-sm flex items-center gap-2"
+          >
+            <span>🎆</span>
+            3D View
+          </button>
+        </div>
       </div>
 
       <div className="relative bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
@@ -392,6 +404,15 @@ export default function ClusteringCanvas({ videos, clusteringResults, clusterSum
         clusterSummaries={clusterSummaries}
         isOpen={isFullscreenOpen}
         onClose={() => setIsFullscreenOpen(false)}
+      />
+
+      {/* 3D Canvas Modal */}
+      <Clustering3D
+        videos={videos}
+        clusteringResults={clusteringResults}
+        clusterSummaries={clusterSummaries}
+        isOpen={is3DOpen}
+        onClose={() => setIs3DOpen(false)}
       />
     </div>
   );
