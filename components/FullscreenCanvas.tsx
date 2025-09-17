@@ -404,43 +404,7 @@ export default function FullscreenCanvas({
         </div>
       )}
 
-      {/* Legend */}
-      <div className="absolute bottom-4 left-4 bg-black/80 backdrop-blur-sm border border-gray-800 rounded-lg p-4">
-        <h4 className="text-white font-medium mb-2">Clusters</h4>
-        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-          {clusterSummaries.map((cluster, index) => (
-            <div key={index} className="flex items-center gap-2 text-xs">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: CLUSTER_COLORS[index % CLUSTER_COLORS.length] }}
-              />
-              <span className="text-gray-300">
-                {cluster.size} videos
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Export Controls */}
-      <ExportControls
-        videos={videos}
-        clusteringResults={clusteringResults}
-        clusterSummaries={clusterSummaries}
-        videoShapes={videoShapes}
-        isFullscreen={true}
-      />
-
-      {/* Help */}
-      <div className="absolute bottom-4 right-4 bg-black/80 backdrop-blur-sm border border-gray-800 rounded-lg p-4">
-        <h4 className="text-white font-medium mb-2">Controls</h4>
-        <div className="text-xs text-gray-400 space-y-1">
-          <div>• Drag empty space to pan</div>
-          <div>• Scroll to zoom</div>
-          <div>• Drag circles to move videos</div>
-          <div>• Press ESC or R to reset</div>
-        </div>
-      </div>
+      {/* Minimal fullscreen interface - no distracting UI elements */}
     </div>
   );
 }
