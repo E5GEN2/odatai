@@ -47,7 +47,7 @@ export default function Clustering3D({
   const [hoveredVideo, setHoveredVideo] = useState<VideoShape3D | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isRotating, setIsRotating] = useState(true);
-  const [cameraDistance, setCameraDistance] = useState(800);
+  const [cameraDistance, setCameraDistance] = useState(1000);
 
   // Initialize 3D scene
   const initScene = useCallback(() => {
@@ -63,7 +63,7 @@ export default function Clustering3D({
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000);
+    scene.background = new THREE.Color(0x111111);
     sceneRef.current = scene;
 
     // Camera
@@ -73,13 +73,25 @@ export default function Clustering3D({
     cameraRef.current = camera;
 
     // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance"
+    });
     renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     rendererRef.current = renderer;
 
+    // Clear any existing canvas
+    if (mountRef.current.firstChild) {
+      mountRef.current.removeChild(mountRef.current.firstChild);
+    }
     mountRef.current.appendChild(renderer.domElement);
+
+    console.log('Renderer initialized:', { width, height, pixelRatio: window.devicePixelRatio });
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
@@ -103,6 +115,14 @@ export default function Clustering3D({
     // Add axis helper
     const axesHelper = new THREE.AxesHelper(100);
     scene.add(axesHelper);
+
+    // Add a test sphere at origin to verify rendering
+    const testGeometry = new THREE.SphereGeometry(20, 32, 32);
+    const testMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+    const testSphere = new THREE.Mesh(testGeometry, testMaterial);
+    testSphere.position.set(0, 0, 0);
+    scene.add(testSphere);
+    console.log('Added test sphere at origin');
 
     return { scene, camera, renderer };
   }, [isOpen, cameraDistance]);
@@ -143,7 +163,9 @@ export default function Clustering3D({
     // Position videos using 3D PCA
     if (shapes.length > 0) {
       const vectors = shapes.map(s => s.vector);
+      console.log('3D PCA input vectors:', vectors.length, 'vectors of dimension', vectors[0]?.length);
       const positions3D = performPCA3D(vectors, { width: window.innerWidth, height: window.innerHeight });
+      console.log('3D PCA output positions:', positions3D.slice(0, 3));
 
       shapes.forEach((shape, index) => {
         shape.position = positions3D[index] || { x: 0, y: 0, z: 0 };
@@ -161,6 +183,8 @@ export default function Clustering3D({
         mesh.position.set(shape.position.x, shape.position.y, shape.position.z);
         mesh.userData = { videoShape: shape };
 
+        console.log('Created mesh at position:', shape.position, 'for video:', shape.title);
+
         // Add glow effect
         const glowGeometry = new THREE.SphereGeometry(12, 16, 16);
         const glowMaterial = new THREE.MeshBasicMaterial({
@@ -175,6 +199,7 @@ export default function Clustering3D({
 
         sceneRef.current!.add(mesh);
         sceneRef.current!.add(glowMesh);
+        console.log('Added mesh to scene. Scene children count:', sceneRef.current!.children.length);
       });
     }
 
@@ -194,8 +219,13 @@ export default function Clustering3D({
       cameraRef.current.lookAt(0, 0, 0);
     }
 
-    // Render scene
-    rendererRef.current.render(sceneRef.current, cameraRef.current);
+    try {
+      // Render scene
+      rendererRef.current.render(sceneRef.current, cameraRef.current);
+    } catch (error) {
+      console.error('Rendering error:', error);
+      return;
+    }
 
     animationRef.current = requestAnimationFrame(animate);
   }, [isRotating, cameraDistance]);
@@ -311,9 +341,9 @@ export default function Clustering3D({
           break;
         case 'r':
         case 'R':
-          setCameraDistance(800);
+          setCameraDistance(1000);
           if (cameraRef.current) {
-            cameraRef.current.position.set(800, 400, 800);
+            cameraRef.current.position.set(1000, 500, 1000);
             cameraRef.current.lookAt(0, 0, 0);
           }
           break;
@@ -356,9 +386,9 @@ export default function Clustering3D({
 
               <button
                 onClick={() => {
-                  setCameraDistance(800);
+                  setCameraDistance(1000);
                   if (cameraRef.current) {
-                    cameraRef.current.position.set(800, 400, 800);
+                    cameraRef.current.position.set(1000, 500, 1000);
                     cameraRef.current.lookAt(0, 0, 0);
                   }
                 }}

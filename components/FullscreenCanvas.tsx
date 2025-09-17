@@ -387,8 +387,8 @@ export default function FullscreenCanvas({
       <canvas
         ref={canvasRef}
         width={canvasSize.width}
-        height={canvasSize.height}
-        className={`absolute inset-0 ${
+        height={canvasSize.height - 72} // Account for top bar in height
+        className={`absolute top-[72px] left-0 right-0 bottom-0 ${
           hoveredVideo
             ? 'cursor-pointer'
             : isCanvasDragging
@@ -400,7 +400,6 @@ export default function FullscreenCanvas({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
-        style={{ marginTop: '72px' }} // Account for top bar
       />
 
       {/* Tooltip */}
