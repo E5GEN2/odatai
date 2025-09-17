@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ProcessedVideo, positionBySimilarity, performPCA } from '../utils/dimensionality-reduction';
+import FullscreenCanvas from './FullscreenCanvas';
 
 interface ClusteringCanvasProps {
   videos: { id: string; title: string }[];
@@ -39,6 +40,7 @@ export default function ClusteringCanvas({ videos, clusteringResults, clusterSum
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
 
   // Initialize video shapes with positions based on embeddings
   useEffect(() => {
@@ -284,9 +286,19 @@ export default function ClusteringCanvas({ videos, clusteringResults, clusterSum
         <h4 className="text-lg font-semibold text-white">Interactive Cluster Visualization</h4>
       </div>
 
-      <p className="text-gray-400 text-sm mb-4">
-        Videos positioned by semantic similarity. Hover to see titles, drag shapes to reposition, click+drag canvas to pan, scroll to zoom.
-      </p>
+      <div className="flex justify-between items-center mb-4">
+        <p className="text-gray-400 text-sm">
+          Videos positioned by semantic similarity. Hover to see titles, drag shapes to reposition, click+drag canvas to pan, scroll to zoom.
+        </p>
+
+        <button
+          onClick={() => setIsFullscreenOpen(true)}
+          className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 font-medium text-sm flex items-center gap-2"
+        >
+          <span>⛶</span>
+          Enter Fullscreen
+        </button>
+      </div>
 
       <div className="relative bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
         <canvas
@@ -361,6 +373,15 @@ export default function ClusteringCanvas({ videos, clusteringResults, clusterSum
           ))}
         </div>
       </div>
+
+      {/* Fullscreen Canvas Modal */}
+      <FullscreenCanvas
+        videos={videos}
+        clusteringResults={clusteringResults}
+        clusterSummaries={clusterSummaries}
+        isOpen={isFullscreenOpen}
+        onClose={() => setIsFullscreenOpen(false)}
+      />
     </div>
   );
 }
