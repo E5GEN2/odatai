@@ -163,8 +163,9 @@ export default function FullscreenCanvas({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Clear canvas with background color
+    ctx.fillStyle = '#111827'; // gray-900
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Save transformation state
     ctx.save();
@@ -173,23 +174,7 @@ export default function FullscreenCanvas({
     ctx.translate(canvasOffset.x, canvasOffset.y);
     ctx.scale(zoom, zoom);
 
-    // Draw subtle cluster backgrounds
-    if (clusterSummaries.length > 0 && videoShapes.length > 0) {
-      clusterSummaries.forEach((cluster, index) => {
-        const clusterVideos = videoShapes.filter(v => v.clusterId === index);
-        if (clusterVideos.length === 0) return;
-
-        const xCoords = clusterVideos.map(v => v.position.x);
-        const yCoords = clusterVideos.map(v => v.position.y);
-        const minX = Math.min(...xCoords) - 60;
-        const maxX = Math.max(...xCoords) + 60;
-        const minY = Math.min(...yCoords) - 60;
-        const maxY = Math.max(...yCoords) + 60;
-
-        ctx.fillStyle = CLUSTER_COLORS[index % CLUSTER_COLORS.length] + '08';
-        ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
-      });
-    }
+    // Skip cluster backgrounds in fullscreen for cleaner look
 
     // Draw video shapes
     videoShapes.forEach(video => {
