@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ProcessedVideo, positionBySimilarity, performPCA } from '../utils/dimensionality-reduction';
 import FullscreenCanvas from './FullscreenCanvas';
+import ExportControls from './ExportControls';
 
 interface ClusteringCanvasProps {
   videos: { id: string; title: string }[];
@@ -372,6 +373,16 @@ export default function ClusteringCanvas({ videos, clusteringResults, clusterSum
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Export Controls */}
+      <div className="mt-4">
+        <ExportControls
+          videos={videos}
+          clusteringResults={clusteringResults}
+          clusterSummaries={clusterSummaries}
+          videoShapes={videoShapes}
+        />
       </div>
 
       {/* Fullscreen Canvas Modal */}
