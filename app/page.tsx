@@ -34,8 +34,8 @@ export default function Home() {
   const [clusteringConfig, setClusteringConfig] = useState({
     k: 5,
     algorithm: 'kmeans++',
-    word2vecApproach: 'pretrained',
-    dimensions: 100,
+    word2vecApproach: 'sentence-transformers',
+    dimensions: 384,
     aggregation: 'mean',
     removeStopwords: true,
     stemWords: true,
@@ -574,102 +574,128 @@ https://www.youtube.com/shorts/abc123"
               onChange={(e) => setClusteringConfig(prev => ({ ...prev, word2vecApproach: e.target.value }))}
               className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
             >
-              <option value="pretrained">Pre-trained Embeddings (Fast)</option>
-              <option value="custom">Train on YouTube Data (Accurate)</option>
-              <option value="hybrid">Hybrid Approach</option>
+              <option value="sentence-transformers">🚀 Sentence Transformers (Best Quality)</option>
+              <option value="pretrained">Pre-trained Word2Vec (Fast)</option>
+              <option value="custom">Train on YouTube Data (Not Implemented)</option>
+              <option value="hybrid">Hybrid Approach (Not Implemented)</option>
             </select>
           </div>
         </div>
 
-        {/* Word2Vec Configuration */}
+        {/* Embedding Configuration */}
         <div className="mt-6 p-4 bg-gradient-to-r from-indigo-950/20 to-purple-950/20 border border-indigo-800/30 rounded-xl">
           <h5 className="text-md font-semibold text-white mb-3 flex items-center gap-2">
             <span>🧠</span>
-            Word2Vec Configuration
+            {clusteringConfig.word2vecApproach === 'sentence-transformers' ? 'Sentence Transformer' : 'Word2Vec'} Configuration
           </h5>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Embedding Dimensions
-              </label>
-              <select
-                value={clusteringConfig.dimensions}
-                onChange={(e) => setClusteringConfig(prev => ({ ...prev, dimensions: parseInt(e.target.value) }))}
-                className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="50">50D (Fast)</option>
-                <option value="100">100D (Balanced)</option>
-                <option value="200">200D (Detailed)</option>
-                <option value="300">300D (High Quality)</option>
-              </select>
-            </div>
+          {clusteringConfig.word2vecApproach === 'sentence-transformers' ? (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Model
+                </label>
+                <select className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="all-MiniLM-L6-v2">all-MiniLM-L6-v2 (Fast, 384D)</option>
+                  <option value="all-mpnet-base-v2">all-mpnet-base-v2 (Best Quality, 768D)</option>
+                  <option value="paraphrase-multilingual">Multilingual Support (384D)</option>
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Aggregation Method
-              </label>
-              <select
-                value={clusteringConfig.aggregation}
-                onChange={(e) => setClusteringConfig(prev => ({ ...prev, aggregation: e.target.value }))}
-                className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="mean">Mean (Average)</option>
-                <option value="sum">Sum</option>
-                <option value="max">Max Pooling</option>
-                <option value="tfidf">TF-IDF Weighted</option>
-              </select>
-            </div>
-          </div>
+              <div className="text-xs text-gray-400 p-2 bg-black/20 rounded-lg">
+                <strong>✨ Advantages:</strong> Understands full sentence context, pre-trained on millions of texts,
+                much better semantic understanding, handles phrases like "Apple stock" vs "Apple fruit" differently.
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Embedding Dimensions
+                  </label>
+                  <select
+                    value={clusteringConfig.dimensions}
+                    onChange={(e) => setClusteringConfig(prev => ({ ...prev, dimensions: parseInt(e.target.value) }))}
+                    className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="50">50D (Fast)</option>
+                    <option value="100">100D (Balanced)</option>
+                    <option value="200">200D (Detailed)</option>
+                    <option value="300">300D (High Quality)</option>
+                  </select>
+                </div>
 
-          <div className="text-xs text-gray-400 p-2 bg-black/20 rounded-lg">
-            <strong>Current:</strong> Pre-trained Embeddings → Mean aggregation → 100D vectors
-          </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Aggregation Method
+                  </label>
+                  <select
+                    value={clusteringConfig.aggregation}
+                    onChange={(e) => setClusteringConfig(prev => ({ ...prev, aggregation: e.target.value }))}
+                    className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="mean">Mean (Average)</option>
+                    <option value="sum">Sum</option>
+                    <option value="max">Max Pooling</option>
+                    <option value="tfidf">TF-IDF Weighted</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="text-xs text-gray-400 p-2 bg-black/20 rounded-lg">
+                <strong>⚠️ Limitations:</strong> Only 37 words in vocabulary, cannot understand context,
+                poor coverage for many YouTube titles.
+              </div>
+            </>
+          )}
         </div>
 
-        <div className="mt-6">
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Text Processing Options
-          </label>
-          <div className="grid grid-cols-2 gap-4">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={clusteringConfig.removeStopwords}
-                onChange={(e) => setClusteringConfig(prev => ({ ...prev, removeStopwords: e.target.checked }))}
-                className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-gray-300 text-sm">Remove stop words</span>
+        {clusteringConfig.word2vecApproach !== 'sentence-transformers' && (
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Text Processing Options
             </label>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={clusteringConfig.stemWords}
-                onChange={(e) => setClusteringConfig(prev => ({ ...prev, stemWords: e.target.checked }))}
-                className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-gray-300 text-sm">Stem words</span>
-            </label>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={clusteringConfig.lowercase}
-                onChange={(e) => setClusteringConfig(prev => ({ ...prev, lowercase: e.target.checked }))}
-                className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-gray-300 text-sm">Lowercase</span>
-            </label>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={clusteringConfig.handleUnknown}
-                onChange={(e) => setClusteringConfig(prev => ({ ...prev, handleUnknown: e.target.checked }))}
-                className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-gray-300 text-sm">Handle unknown words</span>
-            </label>
+            <div className="grid grid-cols-2 gap-4">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={clusteringConfig.removeStopwords}
+                  onChange={(e) => setClusteringConfig(prev => ({ ...prev, removeStopwords: e.target.checked }))}
+                  className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-gray-300 text-sm">Remove stop words</span>
+              </label>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={clusteringConfig.stemWords}
+                  onChange={(e) => setClusteringConfig(prev => ({ ...prev, stemWords: e.target.checked }))}
+                  className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-gray-300 text-sm">Stem words</span>
+              </label>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={clusteringConfig.lowercase}
+                  onChange={(e) => setClusteringConfig(prev => ({ ...prev, lowercase: e.target.checked }))}
+                  className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-gray-300 text-sm">Lowercase</span>
+              </label>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={clusteringConfig.handleUnknown}
+                  onChange={(e) => setClusteringConfig(prev => ({ ...prev, handleUnknown: e.target.checked }))}
+                  className="rounded bg-black/50 border-gray-800 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-gray-300 text-sm">Handle unknown words</span>
+              </label>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Action Buttons */}

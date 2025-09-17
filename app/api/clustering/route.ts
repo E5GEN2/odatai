@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { performClustering, generateClusterSummaries } from '../../../utils/clustering';
 import { Word2VecConfig, prepareDataForClustering } from '../../../utils/word2vec';
+import { processYouTubeTitles } from '../../../utils/sentence-transformers';
+import { kmeans } from 'ml-kmeans';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,20 +25,87 @@ export async function POST(request: NextRequest) {
 
     console.log('Starting clustering with config:', { word2vecConfig, clusteringConfig });
 
-    // Configure clustering settings
-    const clusteringSettings = {
-      k: clusteringConfig.k,
-      algorithm: clusteringConfig.algorithm as 'kmeans' | 'kmeans++' | 'hierarchical',
-      maxIterations: 100,
-      tolerance: 1e-4
-    };
+    let results;
+    let summaries;
+    let processedTexts;
 
-    // Perform clustering
-    const results = await performClustering(titles, word2vecConfig, clusteringSettings);
+    // Check if using Sentence Transformers
+    if (word2vecConfig.approach === 'sentence-transformers') {
+      console.log('Using Sentence Transformers for embeddings...');
 
-    // Generate summaries
-    const processedTexts = prepareDataForClustering(titles, word2vecConfig);
-    const summaries = generateClusterSummaries(results, processedTexts);
+      // Get embeddings from Sentence Transformers
+      const { embeddings } = await processYouTubeTitles(titles);
+
+      // Perform K-means directly on the embeddings
+      const kmeansResult = kmeans(embeddings, clusteringConfig.k, {
+        initialization: clusteringConfig.algorithm === 'kmeans++' ? 'kmeans++' : 'random',
+        maxIterations: 100,
+        tolerance: 1e-4
+      });
+
+      // Structure results similar to performClustering output
+      const clusters: any[][] = Array.from({ length: clusteringConfig.k }, () => []);
+      let totalInertia = 0;
+
+      kmeansResult.clusters.forEach((clusterId: number, index: number) => {
+        const distance = Math.sqrt(
+          embeddings[index].reduce((sum, val, i) => {
+            const diff = val - kmeansResult.centroids[clusterId][i];
+            return sum + diff * diff;
+          }, 0)
+        );
+
+        totalInertia += distance * distance;
+
+        clusters[clusterId].push({
+          clusterId,
+          title: titles[index],
+          vector: embeddings[index],
+          distance
+        });
+      });
+
+      results = {
+        clusters,
+        centroids: kmeansResult.centroids,
+        inertia: totalInertia,
+        iterations: kmeansResult.iterations,
+        convergenceTime: 0,
+        statistics: {
+          clusterSizes: clusters.map(c => c.length),
+          avgCoverage: 100, // Sentence transformers always have full coverage
+          totalVideos: titles.length,
+          processingTime: 0
+        }
+      };
+
+      // Create processed texts for visualization
+      processedTexts = titles.map((title, index) => ({
+        original: title,
+        tokens: title.split(' '),
+        vector: embeddings[index],
+        coverage: 100
+      }));
+
+      // Generate summaries
+      summaries = generateClusterSummaries(results, processedTexts);
+
+    } else {
+      // Use original Word2Vec approach
+      const clusteringSettings = {
+        k: clusteringConfig.k,
+        algorithm: clusteringConfig.algorithm as 'kmeans' | 'kmeans++' | 'hierarchical',
+        maxIterations: 100,
+        tolerance: 1e-4
+      };
+
+      // Perform clustering
+      results = await performClustering(titles, word2vecConfig, clusteringSettings);
+
+      // Generate summaries
+      processedTexts = prepareDataForClustering(titles, word2vecConfig);
+      summaries = generateClusterSummaries(results, processedTexts);
+    }
 
     console.log('Clustering completed:', {
       clusters: results.clusters.length,
