@@ -340,7 +340,7 @@ export default function FullscreenCanvas({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black">
+    <div className="fixed inset-0 z-50 bg-gray-900">
       {/* Top Controls Bar */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-black/80 backdrop-blur-sm border-b border-gray-800 p-4">
         <div className="flex justify-between items-center">
