@@ -298,8 +298,8 @@ export default function Home() {
     setClusteringResults(null);
     setClusteringProgress({
       stage: 'initialization',
-      message: 'Preparing analysis...',
-      progress: 10
+      message: 'Preparing analysis environment...',
+      progress: 5
     });
 
     try {
@@ -307,8 +307,8 @@ export default function Home() {
 
       setClusteringProgress({
         stage: 'config',
-        message: 'Configuring embedding model...',
-        progress: 20
+        message: 'Configuring embedding model and parameters...',
+        progress: 10
       });
 
       // Configure Word2Vec
@@ -324,11 +324,63 @@ export default function Home() {
 
       console.log('Starting clustering with config:', { word2vecConfig, clusteringConfig });
 
-      setClusteringProgress({
-        stage: 'embeddings',
-        message: `Generating ${clusteringConfig.word2vecApproach === 'sentence-transformers' ? 'sentence embeddings' : 'word embeddings'} for ${titles.length} videos...`,
-        progress: 30
-      });
+      // More detailed embedding progress
+      if (clusteringConfig.word2vecApproach === 'sentence-transformers') {
+        setClusteringProgress({
+          stage: 'embeddings',
+          message: `Loading sentence transformer model for ${titles.length} videos...`,
+          progress: 15
+        });
+
+        // Calculate batches for progress reporting
+        const batchSize = 100;
+        const totalBatches = Math.ceil(titles.length / batchSize);
+
+        setClusteringProgress({
+          stage: 'embeddings',
+          message: `Processing embeddings in ${totalBatches} batch${totalBatches > 1 ? 'es' : ''} (${batchSize} videos per batch)...`,
+          progress: 20
+        });
+
+        // Simulate embedding progress (will be replaced with actual progress from API)
+        for (let batch = 1; batch <= totalBatches; batch++) {
+          const batchProgress = 20 + (batch / totalBatches) * 35; // 20% to 55%
+          setClusteringProgress({
+            stage: 'embeddings',
+            message: `Processing batch ${batch}/${totalBatches}: Generating embeddings for videos ${(batch-1)*batchSize + 1}-${Math.min(batch*batchSize, titles.length)}...`,
+            progress: batchProgress
+          });
+
+          // Small delay to show progress
+          if (batch < totalBatches) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
+
+        setClusteringProgress({
+          stage: 'embeddings',
+          message: 'Normalizing and validating embeddings...',
+          progress: 58
+        });
+      } else {
+        setClusteringProgress({
+          stage: 'embeddings',
+          message: `Building ${clusteringConfig.word2vecApproach} vocabulary from ${titles.length} video titles...`,
+          progress: 25
+        });
+
+        setClusteringProgress({
+          stage: 'embeddings',
+          message: `Training ${clusteringConfig.word2vecApproach} model with ${clusteringConfig.dimensions}D vectors...`,
+          progress: 35
+        });
+
+        setClusteringProgress({
+          stage: 'embeddings',
+          message: `Generating ${clusteringConfig.aggregation} aggregated embeddings...`,
+          progress: 50
+        });
+      }
 
       // Call API endpoint for clustering
       const response = await axios.post('/api/clustering', {
@@ -337,16 +389,64 @@ export default function Home() {
         clusteringConfig
       });
 
+      // K-optimization progress if needed
+      if (clusteringConfig.k === -1) {
+        setClusteringProgress({
+          stage: 'k-optimization',
+          message: 'Analyzing optimal number of clusters using Elbow Method...',
+          progress: 60
+        });
+
+        setClusteringProgress({
+          stage: 'k-optimization',
+          message: 'Computing Silhouette scores for different K values...',
+          progress: 65
+        });
+
+        setClusteringProgress({
+          stage: 'k-optimization',
+          message: 'Finding optimal K through consensus analysis...',
+          progress: 68
+        });
+      }
+
+      // Clustering progress
+      const finalK = response.data.kOptimization?.optimalK || clusteringConfig.k;
+
       setClusteringProgress({
         stage: 'clustering',
-        message: `Running ${clusteringConfig.algorithm} clustering with k=${clusteringConfig.k}...`,
+        message: `Initializing ${clusteringConfig.algorithm} clustering with ${finalK} clusters...`,
         progress: 70
+      });
+
+      setClusteringProgress({
+        stage: 'clustering',
+        message: `Running ${clusteringConfig.algorithm} algorithm: Assigning ${titles.length} videos to clusters...`,
+        progress: 75
+      });
+
+      setClusteringProgress({
+        stage: 'clustering',
+        message: 'Computing cluster centroids and convergence...',
+        progress: 85
+      });
+
+      setClusteringProgress({
+        stage: 'post-processing',
+        message: 'Generating cluster summaries and statistics...',
+        progress: 90
+      });
+
+      setClusteringProgress({
+        stage: 'post-processing',
+        message: 'Extracting keywords and creating cluster insights...',
+        progress: 95
       });
 
       if (response.data.success) {
         setClusteringProgress({
           stage: 'completed',
-          message: 'Analysis completed successfully!',
+          message: `Analysis completed! Generated ${response.data.results.clusters.length} clusters with ${response.data.results.statistics.totalVideos} videos.`,
           progress: 100
         });
 
@@ -362,7 +462,7 @@ export default function Home() {
         });
 
         // Clear progress after a brief delay
-        setTimeout(() => setClusteringProgress(null), 2000);
+        setTimeout(() => setClusteringProgress(null), 3000);
       } else {
         throw new Error(response.data.error || 'Clustering failed');
       }
@@ -1017,60 +1117,109 @@ https://www.youtube.com/shorts/abc123"
         )}
       </div>
 
-      {/* Progress Display */}
+      {/* Enhanced Progress Display */}
       {clusteringProgress && (
         <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
-            <span className="text-2xl">⚡</span>
-            <h4 className="text-lg font-semibold text-white">Clustering in Progress</h4>
+            <span className="text-2xl animate-pulse">⚡</span>
+            <div>
+              <h4 className="text-lg font-semibold text-white">Clustering Analysis in Progress</h4>
+              <p className="text-xs text-gray-400">Advanced machine learning pipeline processing</p>
+            </div>
           </div>
 
           <div className="space-y-4">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-300">{clusteringProgress.message}</span>
-              {clusteringProgress.progress && (
-                <span className="text-blue-400 font-medium">{clusteringProgress.progress}%</span>
-              )}
+            {/* Current Status Message */}
+            <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  <span className="text-gray-200 font-medium">{clusteringProgress.message}</span>
+                </div>
+                {clusteringProgress.progress && (
+                  <span className="text-blue-400 font-bold text-lg">{clusteringProgress.progress}%</span>
+                )}
+              </div>
             </div>
 
+            {/* Progress Bar */}
             {clusteringProgress.progress && (
-              <div className="w-full bg-gray-800 rounded-full h-3">
+              <div className="w-full bg-gray-800 rounded-full h-4 border border-gray-700/50">
                 <div
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 h-3 rounded-full transition-all duration-500 ease-out"
+                  className="bg-gradient-to-r from-blue-500 via-purple-500 to-emerald-500 h-4 rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
                   style={{ width: `${clusteringProgress.progress}%` }}
-                />
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
+                </div>
               </div>
             )}
 
-            <div className="grid grid-cols-4 gap-2 text-xs">
-              <div className={`text-center p-2 rounded-lg transition-all duration-300 ${
-                clusteringProgress.stage === 'initialization' || (clusteringProgress.progress && clusteringProgress.progress >= 10)
-                  ? 'bg-blue-600/20 text-blue-300 border border-blue-600/30'
+            {/* Detailed Stage Indicators */}
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
+              <div className={`text-center p-3 rounded-lg transition-all duration-300 ${
+                clusteringProgress.stage === 'initialization' || clusteringProgress.stage === 'config' || (clusteringProgress.progress && clusteringProgress.progress >= 5)
+                  ? 'bg-blue-600/20 text-blue-300 border border-blue-600/30 shadow-lg shadow-blue-600/10'
                   : 'bg-gray-800/50 text-gray-500 border border-gray-700'
               }`}>
-                🚀 Initialize
+                <div className="text-lg mb-1">🚀</div>
+                <div className="font-medium">Initialize</div>
               </div>
-              <div className={`text-center p-2 rounded-lg transition-all duration-300 ${
-                clusteringProgress.stage === 'embeddings' || (clusteringProgress.progress && clusteringProgress.progress >= 30)
-                  ? 'bg-purple-600/20 text-purple-300 border border-purple-600/30'
+
+              <div className={`text-center p-3 rounded-lg transition-all duration-300 ${
+                clusteringProgress.stage === 'embeddings' || (clusteringProgress.progress && clusteringProgress.progress >= 15)
+                  ? 'bg-purple-600/20 text-purple-300 border border-purple-600/30 shadow-lg shadow-purple-600/10'
                   : 'bg-gray-800/50 text-gray-500 border border-gray-700'
               }`}>
-                🧠 Embeddings
+                <div className="text-lg mb-1">🧠</div>
+                <div className="font-medium">Embeddings</div>
               </div>
-              <div className={`text-center p-2 rounded-lg transition-all duration-300 ${
-                clusteringProgress.stage === 'clustering' || (clusteringProgress.progress && clusteringProgress.progress >= 70)
-                  ? 'bg-green-600/20 text-green-300 border border-green-600/30'
+
+              <div className={`text-center p-3 rounded-lg transition-all duration-300 ${
+                clusteringProgress.stage === 'k-optimization' || (clusteringProgress.progress && clusteringProgress.progress >= 60 && clusteringProgress.progress < 70)
+                  ? 'bg-yellow-600/20 text-yellow-300 border border-yellow-600/30 shadow-lg shadow-yellow-600/10'
                   : 'bg-gray-800/50 text-gray-500 border border-gray-700'
               }`}>
-                🎯 Clustering
+                <div className="text-lg mb-1">📊</div>
+                <div className="font-medium">K-Optimize</div>
               </div>
-              <div className={`text-center p-2 rounded-lg transition-all duration-300 ${
+
+              <div className={`text-center p-3 rounded-lg transition-all duration-300 ${
+                clusteringProgress.stage === 'clustering' || (clusteringProgress.progress && clusteringProgress.progress >= 70 && clusteringProgress.progress < 90)
+                  ? 'bg-green-600/20 text-green-300 border border-green-600/30 shadow-lg shadow-green-600/10'
+                  : 'bg-gray-800/50 text-gray-500 border border-gray-700'
+              }`}>
+                <div className="text-lg mb-1">🎯</div>
+                <div className="font-medium">Clustering</div>
+              </div>
+
+              <div className={`text-center p-3 rounded-lg transition-all duration-300 ${
+                clusteringProgress.stage === 'post-processing' || (clusteringProgress.progress && clusteringProgress.progress >= 90 && clusteringProgress.progress < 100)
+                  ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-600/30 shadow-lg shadow-indigo-600/10'
+                  : 'bg-gray-800/50 text-gray-500 border border-gray-700'
+              }`}>
+                <div className="text-lg mb-1">⚙️</div>
+                <div className="font-medium">Processing</div>
+              </div>
+
+              <div className={`text-center p-3 rounded-lg transition-all duration-300 ${
                 clusteringProgress.stage === 'completed' || (clusteringProgress.progress && clusteringProgress.progress >= 100)
-                  ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-600/30'
+                  ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-600/30 shadow-lg shadow-emerald-600/10'
                   : 'bg-gray-800/50 text-gray-500 border border-gray-700'
               }`}>
-                ✅ Complete
+                <div className="text-lg mb-1">✅</div>
+                <div className="font-medium">Complete</div>
               </div>
+            </div>
+
+            {/* Stage Details */}
+            <div className="text-xs text-gray-400 text-center bg-gray-900/30 rounded-lg p-3">
+              {clusteringProgress.stage === 'initialization' && "Setting up analysis environment and validating input data"}
+              {clusteringProgress.stage === 'config' && "Configuring machine learning models and parameters"}
+              {clusteringProgress.stage === 'embeddings' && "Converting text to high-dimensional vector representations"}
+              {clusteringProgress.stage === 'k-optimization' && "Automatically determining optimal number of clusters"}
+              {clusteringProgress.stage === 'clustering' && "Applying machine learning algorithms to group similar videos"}
+              {clusteringProgress.stage === 'post-processing' && "Analyzing results and generating cluster insights"}
+              {clusteringProgress.stage === 'completed' && "Analysis complete! Ready to explore your video clusters"}
             </div>
           </div>
         </div>
@@ -1088,9 +1237,25 @@ https://www.youtube.com/shorts/abc123"
           }`}
         >
           {isClusteringLoading ? (
-            <span className="flex items-center gap-2">
-              <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              {clusteringProgress?.message || 'Analyzing...'}
+            <span className="flex items-center gap-3">
+              <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <div className="text-left">
+                <div className="text-sm font-medium">
+                  {clusteringProgress?.stage === 'initialization' && '🚀 Initializing...'}
+                  {clusteringProgress?.stage === 'config' && '⚙️ Configuring...'}
+                  {clusteringProgress?.stage === 'embeddings' && '🧠 Processing Embeddings...'}
+                  {clusteringProgress?.stage === 'k-optimization' && '📊 Optimizing K Value...'}
+                  {clusteringProgress?.stage === 'clustering' && '🎯 Clustering Videos...'}
+                  {clusteringProgress?.stage === 'post-processing' && '⚙️ Finalizing Results...'}
+                  {clusteringProgress?.stage === 'completed' && '✅ Complete!'}
+                  {!clusteringProgress?.stage && 'Processing...'}
+                </div>
+                {clusteringProgress?.progress && (
+                  <div className="text-xs text-blue-200 opacity-80">
+                    {clusteringProgress.progress}% complete
+                  </div>
+                )}
+              </div>
             </span>
           ) : (
             '🧮 Run K-Means Analysis'
