@@ -31,6 +31,11 @@ export default function Home() {
   const [clusterSummaries, setClusterSummaries] = useState<ClusterSummary[]>([]);
   const [isClusteringLoading, setIsClusteringLoading] = useState(false);
   const [clusteringError, setClusteringError] = useState('');
+  const [clusteringProgress, setClusteringProgress] = useState<{
+    stage: string;
+    message: string;
+    progress?: number;
+  } | null>(null);
   const [clusteringConfig, setClusteringConfig] = useState({
     k: 5,
     algorithm: 'kmeans++',
@@ -234,9 +239,20 @@ export default function Home() {
     setIsClusteringLoading(true);
     setClusteringError('');
     setClusteringResults(null);
+    setClusteringProgress({
+      stage: 'initialization',
+      message: 'Preparing analysis...',
+      progress: 10
+    });
 
     try {
       const titles = videos.map(video => video.title);
+
+      setClusteringProgress({
+        stage: 'config',
+        message: 'Configuring embedding model...',
+        progress: 20
+      });
 
       // Configure Word2Vec
       const word2vecConfig: Word2VecConfig = {
@@ -251,6 +267,12 @@ export default function Home() {
 
       console.log('Starting clustering with config:', { word2vecConfig, clusteringConfig });
 
+      setClusteringProgress({
+        stage: 'embeddings',
+        message: `Generating ${clusteringConfig.word2vecApproach === 'sentence-transformers' ? 'sentence embeddings' : 'word embeddings'} for ${titles.length} videos...`,
+        progress: 30
+      });
+
       // Call API endpoint for clustering
       const response = await axios.post('/api/clustering', {
         titles,
@@ -258,7 +280,19 @@ export default function Home() {
         clusteringConfig
       });
 
+      setClusteringProgress({
+        stage: 'clustering',
+        message: `Running ${clusteringConfig.algorithm} clustering with k=${clusteringConfig.k}...`,
+        progress: 70
+      });
+
       if (response.data.success) {
+        setClusteringProgress({
+          stage: 'completed',
+          message: 'Analysis completed successfully!',
+          progress: 100
+        });
+
         setClusteringResults(response.data.results);
         setClusterSummaries(response.data.summaries);
 
@@ -267,6 +301,9 @@ export default function Home() {
           totalVideos: response.data.results.statistics.totalVideos,
           processingTime: response.data.results.statistics.processingTime
         });
+
+        // Clear progress after a brief delay
+        setTimeout(() => setClusteringProgress(null), 2000);
       } else {
         throw new Error(response.data.error || 'Clustering failed');
       }
@@ -275,6 +312,7 @@ export default function Home() {
       console.error('Clustering error:', err);
       const errorMessage = err.response?.data?.error || err.message || 'Unknown error';
       setClusteringError(`Clustering failed: ${errorMessage}`);
+      setClusteringProgress(null);
     } finally {
       setIsClusteringLoading(false);
     }
@@ -698,6 +736,65 @@ https://www.youtube.com/shorts/abc123"
         )}
       </div>
 
+      {/* Progress Display */}
+      {clusteringProgress && (
+        <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-2xl">⚡</span>
+            <h4 className="text-lg font-semibold text-white">Clustering in Progress</h4>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-300">{clusteringProgress.message}</span>
+              {clusteringProgress.progress && (
+                <span className="text-blue-400 font-medium">{clusteringProgress.progress}%</span>
+              )}
+            </div>
+
+            {clusteringProgress.progress && (
+              <div className="w-full bg-gray-800 rounded-full h-3">
+                <div
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 h-3 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${clusteringProgress.progress}%` }}
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-4 gap-2 text-xs">
+              <div className={`text-center p-2 rounded-lg transition-all duration-300 ${
+                clusteringProgress.stage === 'initialization' || clusteringProgress.progress >= 10
+                  ? 'bg-blue-600/20 text-blue-300 border border-blue-600/30'
+                  : 'bg-gray-800/50 text-gray-500 border border-gray-700'
+              }`}>
+                🚀 Initialize
+              </div>
+              <div className={`text-center p-2 rounded-lg transition-all duration-300 ${
+                clusteringProgress.stage === 'embeddings' || clusteringProgress.progress >= 30
+                  ? 'bg-purple-600/20 text-purple-300 border border-purple-600/30'
+                  : 'bg-gray-800/50 text-gray-500 border border-gray-700'
+              }`}>
+                🧠 Embeddings
+              </div>
+              <div className={`text-center p-2 rounded-lg transition-all duration-300 ${
+                clusteringProgress.stage === 'clustering' || clusteringProgress.progress >= 70
+                  ? 'bg-green-600/20 text-green-300 border border-green-600/30'
+                  : 'bg-gray-800/50 text-gray-500 border border-gray-700'
+              }`}>
+                🎯 Clustering
+              </div>
+              <div className={`text-center p-2 rounded-lg transition-all duration-300 ${
+                clusteringProgress.stage === 'completed' || clusteringProgress.progress >= 100
+                  ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-600/30'
+                  : 'bg-gray-800/50 text-gray-500 border border-gray-700'
+              }`}>
+                ✅ Complete
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="flex justify-center">
         <button
@@ -712,13 +809,12 @@ https://www.youtube.com/shorts/abc123"
           {isClusteringLoading ? (
             <span className="flex items-center gap-2">
               <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Analyzing...
+              {clusteringProgress?.message || 'Analyzing...'}
             </span>
           ) : (
             '🧮 Run K-Means Analysis'
           )}
         </button>
-
       </div>
 
       {/* Error Display */}
