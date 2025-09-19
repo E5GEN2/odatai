@@ -99,15 +99,29 @@ export async function POST(request: NextRequest) {
           if (word2vecConfig.approach === 'sentence-transformers') {
             sendProgress('embeddings', `Loading sentence transformer model for ${titlesToCluster.length} English videos...`, 15);
 
-            // Get embeddings with progress updates
-            const { embeddings } = await processYouTubeTitlesWithProgress(titlesToCluster, {
-              onProgress: (batch: number, totalBatches: number, message: string) => {
-                const batchProgress = 20 + (batch / totalBatches) * 35; // 20% to 55%
-                sendProgress('embeddings', message, batchProgress);
-              }
-            });
+            let embeddings;
+            try {
+              // Get embeddings with progress updates
+              const embeddingResult = await processYouTubeTitlesWithProgress(titlesToCluster, {
+                onProgress: (batch: number, totalBatches: number, message: string) => {
+                  const batchProgress = 20 + (batch / totalBatches) * 35; // 20% to 55%
+                  sendProgress('embeddings', message, batchProgress);
+                }
+              });
+              embeddings = embeddingResult.embeddings;
 
-            sendProgress('embeddings', 'Normalizing embedding vectors...', 56);
+              if (!embeddings || embeddings.length === 0) {
+                throw new Error('No embeddings were generated');
+              }
+
+              sendProgress('embeddings', `Successfully generated ${embeddings.length} embeddings`, 56);
+            } catch (embeddingError: any) {
+              console.error('Embedding generation failed:', embeddingError);
+              sendError(`Failed to generate embeddings: ${embeddingError.message || 'Unknown error'}. Please check your internet connection and try again.`);
+              return;
+            }
+
+            sendProgress('embeddings', 'Normalizing embedding vectors...', 57);
 
             // Simulate normalization steps with small delays
             await new Promise(resolve => setTimeout(resolve, 200));

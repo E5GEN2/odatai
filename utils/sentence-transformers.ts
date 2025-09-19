@@ -30,11 +30,17 @@ export const SENTENCE_TRANSFORMER_MODELS = {
 export async function getSentenceEmbeddings(
   texts: string[],
   model: string = 'sentence-transformers/all-MiniLM-L6-v2',
-  apiKey?: string
+  apiKey?: string,
+  retryCount: number = 0
 ): Promise<number[][]> {
   const API_URL = `https://api-inference.huggingface.co/models/${model}`;
+  const maxRetries = 3;
 
   try {
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -44,11 +50,28 @@ export async function getSentenceEmbeddings(
       body: JSON.stringify({
         inputs: texts,
         options: { wait_for_model: true }
-      })
+      }),
+      signal: controller.signal
     });
 
+    clearTimeout(timeout);
+
     if (!response.ok) {
-      throw new Error(`Hugging Face API error: ${response.status}`);
+      let errorMessage = `Hugging Face API error: ${response.status}`;
+
+      // Retry for model loading errors
+      if (response.status === 503 && retryCount < maxRetries) {
+        console.log(`Model is loading, retrying in 5 seconds... (attempt ${retryCount + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        return getSentenceEmbeddings(texts, model, apiKey, retryCount + 1);
+      } else if (response.status === 503) {
+        errorMessage = 'Model is still loading after multiple attempts, please try again later';
+      } else if (response.status === 429) {
+        errorMessage = 'Rate limit exceeded, please wait a moment and try again';
+      } else if (response.status === 401) {
+        errorMessage = 'Invalid API key (if using one)';
+      }
+      throw new Error(errorMessage);
     }
 
     const result = await response.json();
@@ -61,8 +84,16 @@ export async function getSentenceEmbeddings(
     } else {
       throw new Error('Unexpected response format from Hugging Face API');
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error getting sentence embeddings:', error);
+
+    // Provide more specific error messages
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out after 30 seconds. The Hugging Face API may be down or overloaded.');
+    } else if (error.message?.includes('fetch')) {
+      throw new Error('Network error: Unable to connect to Hugging Face API. Check your internet connection.');
+    }
+
     throw error;
   }
 }
@@ -170,12 +201,20 @@ export async function processYouTubeTitlesWithProgress(
         );
       }
 
-      const batchEmbeddings = await getSentenceEmbeddings(
-        batch,
-        model,
-        config?.apiKey
-      );
-      allEmbeddings.push(...batchEmbeddings);
+      try {
+        const batchEmbeddings = await getSentenceEmbeddings(
+          batch,
+          model,
+          config?.apiKey
+        );
+        allEmbeddings.push(...batchEmbeddings);
+      } catch (batchError: any) {
+        console.error(`Failed to process batch ${batchNumber}:`, batchError);
+        if (onProgress) {
+          onProgress(batchNumber, totalBatches, `Error in batch ${batchNumber}: ${batchError.message}`);
+        }
+        throw batchError;
+      }
 
       // Small delay to respect rate limits
       if (i + batchSize < titles.length) {
