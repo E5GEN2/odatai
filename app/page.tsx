@@ -18,10 +18,12 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'data-mining' | 'analyze'>('data-mining');
   const [inputText, setInputText] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [huggingFaceApiKey, setHuggingFaceApiKey] = useState('');
   const [videos, setVideos] = useState<VideoData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showHuggingFaceApiKey, setShowHuggingFaceApiKey] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [progress, setProgress] = useState<{current: number, total: number} | null>(null);
   const [appendMode, setAppendMode] = useState(false);
@@ -327,7 +329,8 @@ export default function Home() {
         body: JSON.stringify({
           titles,
           word2vecConfig,
-          clusteringConfig
+          clusteringConfig,
+          huggingFaceApiKey: huggingFaceApiKey.trim() || undefined
         }),
       });
 
@@ -407,11 +410,16 @@ export default function Home() {
     }
   };
 
-  // Load API key from localStorage on mount
+  // Load API keys from localStorage on mount
   useEffect(() => {
-    const savedKey = localStorage.getItem('youtube_api_key');
-    if (savedKey) {
-      setApiKey(savedKey);
+    const savedYouTubeKey = localStorage.getItem('youtube_api_key');
+    if (savedYouTubeKey) {
+      setApiKey(savedYouTubeKey);
+    }
+
+    const savedHuggingFaceKey = localStorage.getItem('huggingface_api_key');
+    if (savedHuggingFaceKey) {
+      setHuggingFaceApiKey(savedHuggingFaceKey);
     }
   }, []);
 
@@ -857,6 +865,68 @@ https://www.youtube.com/shorts/abc123"
             <span>No video data found. Please fetch some videos in the Data Mining tab first.</span>
           </div>
         )}
+      </div>
+
+      {/* Hugging Face API Key */}
+      <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-2xl">🤗</span>
+          <h4 className="text-lg font-semibold text-white">Hugging Face API Configuration</h4>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-3">
+              🔑 Hugging Face API Key (Optional)
+            </label>
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <input
+                  type={showHuggingFaceApiKey ? "text" : "password"}
+                  className="w-full px-5 py-4 bg-black/50 backdrop-blur-md border border-gray-800 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                  placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  value={huggingFaceApiKey}
+                  onChange={(e) => setHuggingFaceApiKey(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={() => setShowHuggingFaceApiKey(!showHuggingFaceApiKey)}
+                className="px-4 py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-2xl transition-all duration-300 border border-gray-700"
+              >
+                {showHuggingFaceApiKey ? '🙈' : '👁️'}
+              </button>
+              <button
+                onClick={() => {
+                  if (huggingFaceApiKey.trim()) {
+                    localStorage.setItem('huggingface_api_key', huggingFaceApiKey.trim());
+                  } else {
+                    localStorage.removeItem('huggingface_api_key');
+                  }
+                  alert(huggingFaceApiKey.trim() ? 'Hugging Face API key saved!' : 'Hugging Face API key removed!');
+                }}
+                className="px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl transition-all duration-300 font-medium"
+              >
+                💾 Save
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-blue-950/30 border border-blue-800/50 rounded-xl p-4">
+            <div className="text-sm text-blue-300">
+              <div className="flex items-start gap-2 mb-2">
+                <span>💡</span>
+                <div>
+                  <strong>Free Tier vs API Key:</strong>
+                  <ul className="mt-1 space-y-1 text-xs text-blue-200">
+                    <li>• <strong>Without API Key:</strong> Free tier with rate limits (~1000 requests/day)</li>
+                    <li>• <strong>With API Key:</strong> Higher limits, faster processing, better reliability</li>
+                    <li>• <strong>Get API Key:</strong> Sign up at <a href="https://huggingface.co" target="_blank" className="underline hover:text-blue-100">huggingface.co</a> → Settings → Access Tokens</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Clustering Controls */}

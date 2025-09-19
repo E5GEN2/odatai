@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       (async () => {
         try {
           const body = await request.json();
-          const { titles, word2vecConfig, clusteringConfig } = body;
+          const { titles, word2vecConfig, clusteringConfig, huggingFaceApiKey } = body;
 
           if (!titles || !Array.isArray(titles) || titles.length === 0) {
             sendError('Invalid titles array provided');
@@ -103,6 +103,9 @@ export async function POST(request: NextRequest) {
             try {
               // Get embeddings with progress updates
               const embeddingResult = await processYouTubeTitlesWithProgress(titlesToCluster, {
+                config: {
+                  apiKey: huggingFaceApiKey
+                },
                 onProgress: (batch: number, totalBatches: number, message: string) => {
                   const batchProgress = 20 + (batch / totalBatches) * 35; // 20% to 55%
                   sendProgress('embeddings', message, batchProgress);
