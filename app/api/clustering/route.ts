@@ -3,6 +3,7 @@ import { performClustering, generateClusterSummaries } from '../../../utils/clus
 import { Word2VecConfig, prepareDataForClustering } from '../../../utils/word2vec';
 import { processYouTubeTitles } from '../../../utils/sentence-transformers';
 import { kmeans } from 'ml-kmeans';
+import { analyzeOptimalK } from '../../../utils/k-optimization';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest) {
     let results;
     let summaries;
     let processedTexts;
+    let kOptimizationAnalysis = null;
 
     // Check if using Sentence Transformers
     if (word2vecConfig.approach === 'sentence-transformers') {
@@ -36,15 +38,25 @@ export async function POST(request: NextRequest) {
       // Get embeddings from Sentence Transformers
       const { embeddings } = await processYouTubeTitles(titles);
 
+      // Analyze optimal K if requested (when k is auto or -1)
+      let finalK = clusteringConfig.k;
+
+      if (clusteringConfig.k === -1 || clusteringConfig.k === 'auto') {
+        console.log('Analyzing optimal K value...');
+        kOptimizationAnalysis = analyzeOptimalK(embeddings, Math.min(10, Math.floor(embeddings.length / 3)));
+        finalK = kOptimizationAnalysis.optimalK;
+        console.log(`Optimal K analysis complete. Recommended K: ${finalK}`);
+      }
+
       // Perform K-means directly on the embeddings
-      const kmeansResult = kmeans(embeddings, clusteringConfig.k, {
+      const kmeansResult = kmeans(embeddings, finalK, {
         initialization: clusteringConfig.algorithm === 'kmeans++' ? 'kmeans++' : 'random',
         maxIterations: 100,
         tolerance: 1e-4
       });
 
       // Structure results similar to performClustering output
-      const clusters: any[][] = Array.from({ length: clusteringConfig.k }, () => []);
+      const clusters: any[][] = Array.from({ length: finalK }, () => []);
       let totalInertia = 0;
 
       kmeansResult.clusters.forEach((clusterId: number, index: number) => {
@@ -117,7 +129,8 @@ export async function POST(request: NextRequest) {
       success: true,
       results,
       summaries,
-      processedTexts // Include processed texts for visualization
+      processedTexts, // Include processed texts for visualization
+      kOptimization: kOptimizationAnalysis // Include K optimization analysis if performed
     });
 
   } catch (error: any) {

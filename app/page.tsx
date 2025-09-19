@@ -47,6 +47,7 @@ export default function Home() {
     lowercase: true,
     handleUnknown: false
   });
+  const [kOptimizationResults, setKOptimizationResults] = useState<any>(null);
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -323,11 +324,13 @@ export default function Home() {
 
         setClusteringResults(response.data.results);
         setClusterSummaries(response.data.summaries);
+        setKOptimizationResults(response.data.kOptimization);
 
         console.log('Clustering completed:', {
           clusters: response.data.results.clusters.length,
           totalVideos: response.data.results.statistics.totalVideos,
-          processingTime: response.data.results.statistics.processingTime
+          processingTime: response.data.results.statistics.processingTime,
+          kOptimization: response.data.kOptimization
         });
 
         // Clear progress after a brief delay
@@ -628,15 +631,32 @@ https://www.youtube.com/shorts/abc123"
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Number of Clusters (k)
             </label>
-            <input
-              type="number"
-              min="2"
-              max="20"
-              value={clusteringConfig.k}
-              onChange={(e) => setClusteringConfig(prev => ({ ...prev, k: parseInt(e.target.value) || 5 }))}
-              className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
-              placeholder="Enter number of clusters"
-            />
+            <div className="flex gap-2">
+              <select
+                value={clusteringConfig.k === -1 ? 'auto' : clusteringConfig.k}
+                onChange={(e) => {
+                  const value = e.target.value === 'auto' ? -1 : parseInt(e.target.value);
+                  setClusteringConfig(prev => ({ ...prev, k: value }));
+                }}
+                className="flex-1 px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+              >
+                <option value="auto">🤖 Auto-detect optimal K</option>
+                <option value="2">2 clusters</option>
+                <option value="3">3 clusters</option>
+                <option value="4">4 clusters</option>
+                <option value="5">5 clusters</option>
+                <option value="6">6 clusters</option>
+                <option value="7">7 clusters</option>
+                <option value="8">8 clusters</option>
+                <option value="9">9 clusters</option>
+                <option value="10">10 clusters</option>
+              </select>
+            </div>
+            {clusteringConfig.k === -1 && (
+              <p className="text-xs text-blue-400 mt-1">
+                Uses Elbow Method and Silhouette Analysis to find optimal number of clusters
+              </p>
+            )}
           </div>
 
           <div>
@@ -882,6 +902,51 @@ https://www.youtube.com/shorts/abc123"
       {/* Results Display */}
       {clusteringResults ? (
         <div className="space-y-6">
+          {/* K Optimization Results */}
+          {kOptimizationResults && (
+            <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-6">
+              <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <span>🤖</span>
+                Optimal K Analysis
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <div className="text-center mb-4">
+                    <div className="text-3xl font-bold text-blue-400">{kOptimizationResults.optimalK}</div>
+                    <div className="text-sm text-gray-400">Recommended Clusters</div>
+                  </div>
+                  <p className="text-xs text-gray-300 bg-gray-900/50 p-3 rounded-lg">
+                    {kOptimizationResults.reasoning}
+                  </p>
+                </div>
+
+                <div>
+                  <h5 className="text-sm font-medium text-gray-300 mb-2">Method Scores</h5>
+                  <div className="space-y-2">
+                    {kOptimizationResults.recommendations.map((rec: any, index: number) => (
+                      <div key={index} className="flex justify-between items-center bg-gray-900/30 p-2 rounded">
+                        <span className="text-xs text-gray-400">
+                          {rec.method === 'elbow' ? '📈 Elbow' : '🎯 Silhouette'} K={rec.k}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-300">{rec.score.toFixed(3)}</span>
+                          <span className={`text-xs px-2 py-1 rounded ${
+                            rec.confidence === 'high' ? 'bg-green-600/20 text-green-300' :
+                            rec.confidence === 'medium' ? 'bg-yellow-600/20 text-yellow-300' :
+                            'bg-gray-600/20 text-gray-300'
+                          }`}>
+                            {rec.confidence}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Summary Statistics */}
           <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-6">
             <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
