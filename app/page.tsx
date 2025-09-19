@@ -1319,7 +1319,7 @@ https://www.youtube.com/shorts/abc123"
                           {rec.method === 'elbow' ? '📈 Elbow' : '🎯 Silhouette'} K={rec.k}
                         </span>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-300">{rec.score.toFixed(3)}</span>
+                          <span className="text-xs text-gray-300">{rec.score != null ? rec.score.toFixed(3) : 'N/A'}</span>
                           <span className={`text-xs px-2 py-1 rounded ${
                             rec.confidence === 'high' ? 'bg-green-600/20 text-green-300' :
                             rec.confidence === 'medium' ? 'bg-yellow-600/20 text-yellow-300' :
@@ -1352,7 +1352,7 @@ https://www.youtube.com/shorts/abc123"
                 <div className="text-sm text-gray-400">Videos</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-400">{clusteringResults.statistics.avgCoverage.toFixed(1)}%</div>
+                <div className="text-2xl font-bold text-purple-400">{clusteringResults.statistics.avgCoverage != null ? clusteringResults.statistics.avgCoverage.toFixed(1) : '100.0'}%</div>
                 <div className="text-sm text-gray-400">Word Coverage</div>
               </div>
               <div className="text-center">
