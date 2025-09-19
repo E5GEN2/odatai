@@ -192,6 +192,34 @@ export default function Home() {
     setAppendMode(false);
   };
 
+  const removeDuplicates = () => {
+    if (videos.length === 0) return;
+
+    const uniqueVideos = new Map<string, VideoData>();
+    let duplicatesCount = 0;
+
+    // Keep only the first occurrence of each video ID
+    videos.forEach(video => {
+      if (!uniqueVideos.has(video.id)) {
+        uniqueVideos.set(video.id, video);
+      } else {
+        duplicatesCount++;
+      }
+    });
+
+    const uniqueVideoArray = Array.from(uniqueVideos.values());
+    setVideos(uniqueVideoArray);
+
+    // Show a message about removed duplicates
+    if (duplicatesCount > 0) {
+      setError(`✅ Removed ${duplicatesCount} duplicate video${duplicatesCount !== 1 ? 's' : ''}. ${uniqueVideoArray.length} unique videos remaining.`);
+      setTimeout(() => setError(''), 3000);
+    } else {
+      setError('✅ No duplicates found. All videos are unique.');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   const exportToCSV = () => {
     if (videos.length === 0) return;
 
@@ -386,11 +414,17 @@ https://www.youtube.com/shorts/abc123"
         />
       </div>
 
-      {/* Error Display */}
+      {/* Error/Success Display */}
       {error && (
-        <div className="mb-6 p-4 bg-red-950/50 backdrop-blur-md border border-red-900/50 rounded-2xl animate-shake">
-          <p className="text-red-400 flex items-center gap-2">
-            <span className="text-xl">⚠️</span>
+        <div className={`mb-6 p-4 backdrop-blur-md rounded-2xl ${
+          error.startsWith('✅')
+            ? 'bg-green-950/50 border border-green-900/50'
+            : 'bg-red-950/50 border border-red-900/50 animate-shake'
+        }`}>
+          <p className={`flex items-center gap-2 ${
+            error.startsWith('✅') ? 'text-green-400' : 'text-red-400'
+          }`}>
+            {!error.startsWith('✅') && <span className="text-xl">⚠️</span>}
             {error}
           </p>
         </div>
@@ -459,12 +493,20 @@ https://www.youtube.com/shorts/abc123"
           🗑️ Clear All
         </button>
         {videos.length > 0 && (
-          <button
-            onClick={exportToCSV}
-            className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-2xl hover:from-green-700 hover:to-emerald-700 transition-all duration-300 font-semibold transform hover:scale-105 shadow-lg hover:shadow-green-500/25"
-          >
-            📊 Export CSV
-          </button>
+          <>
+            <button
+              onClick={removeDuplicates}
+              className="px-8 py-4 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-2xl hover:from-amber-700 hover:to-orange-700 transition-all duration-300 font-semibold transform hover:scale-105 shadow-lg hover:shadow-amber-500/25"
+            >
+              🧹 Remove Duplicates
+            </button>
+            <button
+              onClick={exportToCSV}
+              className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-2xl hover:from-green-700 hover:to-emerald-700 transition-all duration-300 font-semibold transform hover:scale-105 shadow-lg hover:shadow-green-500/25"
+            >
+              📊 Export CSV
+            </button>
+          </>
         )}
       </div>
 
@@ -534,6 +576,15 @@ https://www.youtube.com/shorts/abc123"
           </div>
           <div className="mt-4 text-center text-gray-500 text-sm">
             Found {videos.length} video{videos.length !== 1 ? 's' : ''}
+            {(() => {
+              const uniqueIds = new Set(videos.map(v => v.id));
+              const duplicateCount = videos.length - uniqueIds.size;
+              return duplicateCount > 0 ? (
+                <span className="text-amber-400 ml-2">
+                  ({duplicateCount} duplicate{duplicateCount !== 1 ? 's' : ''} detected)
+                </span>
+              ) : null;
+            })()}
           </div>
         </div>
       )}
