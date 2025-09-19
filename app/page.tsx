@@ -42,6 +42,7 @@ export default function Home() {
     k: 5,
     algorithm: 'kmeans++',
     word2vecApproach: 'sentence-transformers',
+    sentenceTransformerModel: 'BAAI/bge-small-en-v1.5',
     dimensions: 384,
     aggregation: 'mean',
     removeStopwords: true,
@@ -310,6 +311,7 @@ export default function Home() {
       // Configure Word2Vec
       const word2vecConfig: Word2VecConfig = {
         approach: clusteringConfig.word2vecApproach as 'pretrained' | 'custom' | 'hybrid',
+        model: clusteringConfig.sentenceTransformerModel,
         dimensions: clusteringConfig.dimensions,
         aggregation: clusteringConfig.aggregation as 'mean' | 'sum' | 'max' | 'tfidf',
         removeStopwords: clusteringConfig.removeStopwords,
@@ -1021,10 +1023,15 @@ https://www.youtube.com/shorts/abc123"
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Model
                 </label>
-                <select className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="all-MiniLM-L6-v2">all-MiniLM-L6-v2 (Fast, 384D)</option>
-                  <option value="all-mpnet-base-v2">all-mpnet-base-v2 (Best Quality, 768D)</option>
-                  <option value="paraphrase-multilingual">Multilingual Support (384D)</option>
+                <select
+                  value={clusteringConfig.sentenceTransformerModel}
+                  onChange={(e) => setClusteringConfig({...clusteringConfig, sentenceTransformerModel: e.target.value})}
+                  className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="BAAI/bge-small-en-v1.5">BGE Small English (Fast, 384D) - Recommended</option>
+                  <option value="all-MiniLM-L6-v2">all-MiniLM-L6-v2 (Fast, 384D) - Not Working</option>
+                  <option value="all-mpnet-base-v2">all-mpnet-base-v2 (Best Quality, 768D) - Not Working</option>
+                  <option value="paraphrase-multilingual">Multilingual Support (384D) - Not Working</option>
                 </select>
               </div>
 

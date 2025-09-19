@@ -39,7 +39,8 @@ const EMBEDDINGS: Record<string, number[]> = {
 const EMBEDDING_DIM = 8; // Dimension of our embeddings
 
 export interface Word2VecConfig {
-  approach: 'pretrained' | 'custom' | 'hybrid';
+  approach: 'pretrained' | 'custom' | 'hybrid' | 'sentence-transformers';
+  model?: string;
   dimensions: number;
   aggregation: 'mean' | 'sum' | 'max' | 'tfidf';
   removeStopwords: boolean;

@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
               // Get embeddings with progress updates
               const embeddingResult = await processYouTubeTitlesWithProgress(titlesToCluster, {
                 config: {
+                  model: word2vecConfig.model,
                   apiKey: huggingFaceApiKey
                 },
                 onProgress: (batch: number, totalBatches: number, message: string) => {
