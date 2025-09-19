@@ -814,28 +814,28 @@ https://www.youtube.com/shorts/abc123"
 
             <div className="grid grid-cols-4 gap-2 text-xs">
               <div className={`text-center p-2 rounded-lg transition-all duration-300 ${
-                clusteringProgress.stage === 'initialization' || clusteringProgress.progress >= 10
+                clusteringProgress.stage === 'initialization' || (clusteringProgress.progress && clusteringProgress.progress >= 10)
                   ? 'bg-blue-600/20 text-blue-300 border border-blue-600/30'
                   : 'bg-gray-800/50 text-gray-500 border border-gray-700'
               }`}>
                 🚀 Initialize
               </div>
               <div className={`text-center p-2 rounded-lg transition-all duration-300 ${
-                clusteringProgress.stage === 'embeddings' || clusteringProgress.progress >= 30
+                clusteringProgress.stage === 'embeddings' || (clusteringProgress.progress && clusteringProgress.progress >= 30)
                   ? 'bg-purple-600/20 text-purple-300 border border-purple-600/30'
                   : 'bg-gray-800/50 text-gray-500 border border-gray-700'
               }`}>
                 🧠 Embeddings
               </div>
               <div className={`text-center p-2 rounded-lg transition-all duration-300 ${
-                clusteringProgress.stage === 'clustering' || clusteringProgress.progress >= 70
+                clusteringProgress.stage === 'clustering' || (clusteringProgress.progress && clusteringProgress.progress >= 70)
                   ? 'bg-green-600/20 text-green-300 border border-green-600/30'
                   : 'bg-gray-800/50 text-gray-500 border border-gray-700'
               }`}>
                 🎯 Clustering
               </div>
               <div className={`text-center p-2 rounded-lg transition-all duration-300 ${
-                clusteringProgress.stage === 'completed' || clusteringProgress.progress >= 100
+                clusteringProgress.stage === 'completed' || (clusteringProgress.progress && clusteringProgress.progress >= 100)
                   ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-600/30'
                   : 'bg-gray-800/50 text-gray-500 border border-gray-700'
               }`}>
