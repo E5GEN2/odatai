@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
             if (clusteringConfig.k === -1) {
               sendProgress('k-optimization', 'Analyzing optimal K using Elbow Method...', 62);
 
-              kOptimizationAnalysis = analyzeOptimalK(embeddings, Math.min(30, Math.floor(embeddings.length / 3)));
+              kOptimizationAnalysis = analyzeOptimalK(embeddings, Math.max(10, Math.floor(embeddings.length * 0.1)));
               finalK = kOptimizationAnalysis.optimalK;
 
               sendProgress('k-optimization', 'Computing Silhouette scores...', 65);
