@@ -4,6 +4,7 @@ import { Word2VecConfig, prepareDataForClustering } from '../../../utils/word2ve
 import { processYouTubeTitlesWithProgress } from '../../../utils/sentence-transformers';
 import { kmeans } from 'ml-kmeans';
 import { analyzeOptimalK } from '../../../utils/k-optimization';
+import { detectLanguage } from '../../../utils/language-detection';
 
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
@@ -45,17 +46,61 @@ export async function POST(request: NextRequest) {
 
           sendProgress('initialization', 'Starting clustering analysis...', 5);
 
+          // Filter for English-only content
+          sendProgress('initialization', 'Detecting languages and filtering content...', 8);
+
+          const englishTitles: string[] = [];
+          const filteredOutTitles: string[] = [];
+          let languageStats = {
+            english: 0,
+            russian: 0,
+            other: 0
+          };
+
+          titles.forEach(title => {
+            const detection = detectLanguage(title);
+            if (detection.isEnglish && detection.confidence > 0.5) {
+              englishTitles.push(title);
+              languageStats.english++;
+            } else {
+              filteredOutTitles.push(title);
+              if (detection.detectedScript === 'cyrillic') {
+                languageStats.russian++;
+              } else {
+                languageStats.other++;
+              }
+            }
+          });
+
+          sendProgress('initialization',
+            `Filtered to ${englishTitles.length} English videos (removed ${filteredOutTitles.length} non-English)`,
+            10
+          );
+
+          if (englishTitles.length < 2) {
+            sendError(`Not enough English content to cluster. Found only ${englishTitles.length} English videos out of ${titles.length} total.`);
+            return;
+          }
+
+          if (englishTitles.length < clusteringConfig.k) {
+            sendError(`Need at least ${clusteringConfig.k} English videos for ${clusteringConfig.k} clusters. Found only ${englishTitles.length}.`);
+            return;
+          }
+
           let results;
           let summaries;
           let processedTexts;
           let kOptimizationAnalysis = null;
 
+          // Use English-only titles for clustering
+          const titlesToCluster = englishTitles;
+
           // Check if using Sentence Transformers
           if (word2vecConfig.approach === 'sentence-transformers') {
-            sendProgress('embeddings', 'Loading sentence transformer model...', 15);
+            sendProgress('embeddings', `Loading sentence transformer model for ${titlesToCluster.length} English videos...`, 15);
 
             // Get embeddings with progress updates
-            const { embeddings } = await processYouTubeTitlesWithProgress(titles, {
+            const { embeddings } = await processYouTubeTitlesWithProgress(titlesToCluster, {
               onProgress: (batch: number, totalBatches: number, message: string) => {
                 const batchProgress = 20 + (batch / totalBatches) * 35; // 20% to 55%
                 sendProgress('embeddings', message, batchProgress);
@@ -77,7 +122,7 @@ export async function POST(request: NextRequest) {
             if (clusteringConfig.k === -1) {
               sendProgress('k-optimization', 'Analyzing optimal K using Elbow Method...', 62);
 
-              kOptimizationAnalysis = analyzeOptimalK(embeddings, Math.min(10, Math.floor(embeddings.length / 3)));
+              kOptimizationAnalysis = analyzeOptimalK(embeddings, Math.min(30, Math.floor(embeddings.length / 3)));
               finalK = kOptimizationAnalysis.optimalK;
 
               sendProgress('k-optimization', 'Computing Silhouette scores...', 65);
@@ -116,7 +161,7 @@ export async function POST(request: NextRequest) {
 
               clusters[clusterId].push({
                 clusterId,
-                title: titles[index],
+                title: titlesToCluster[index],
                 vector: embeddings[index],
                 distance
               });
@@ -131,7 +176,7 @@ export async function POST(request: NextRequest) {
               statistics: {
                 clusterSizes: clusters.map(c => c.length),
                 avgCoverage: 100,
-                totalVideos: titles.length,
+                totalVideos: titlesToCluster.length,
                 processingTime: 0
               }
             };
@@ -139,7 +184,7 @@ export async function POST(request: NextRequest) {
             sendProgress('post-processing', 'Generating cluster summaries...', 90);
 
             // Create processed texts for visualization
-            processedTexts = titles.map((title, index) => ({
+            processedTexts = titlesToCluster.map((title, index) => ({
               original: title,
               tokens: title.split(' '),
               vector: embeddings[index],

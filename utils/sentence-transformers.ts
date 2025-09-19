@@ -78,33 +78,8 @@ export async function getEmbeddingsFree(
   );
 }
 
-// Fallback to local computation if API fails
-export function computeFallbackEmbeddings(
-  texts: string[],
-  dimensions: number = 384
-): number[][] {
-  console.warn('Using fallback random embeddings - results will be poor');
-
-  // Generate deterministic pseudo-random embeddings based on text
-  return texts.map(text => {
-    const embedding = new Array(dimensions);
-    let hash = 0;
-
-    // Simple hash function
-    for (let i = 0; i < text.length; i++) {
-      hash = ((hash << 5) - hash) + text.charCodeAt(i);
-      hash = hash & hash; // Convert to 32bit integer
-    }
-
-    // Generate pseudo-random values
-    for (let i = 0; i < dimensions; i++) {
-      const seed = hash * (i + 1);
-      embedding[i] = (Math.sin(seed) + Math.cos(seed * 0.5)) * 0.5;
-    }
-
-    return embedding;
-  });
-}
+// NO FALLBACK EMBEDDINGS - We must fail properly if API doesn't work
+// Removed fallback function completely - better to fail than give bad results
 
 // Process YouTube titles with Sentence Transformers
 export async function processYouTubeTitles(
@@ -149,14 +124,9 @@ export async function processYouTubeTitles(
     };
 
   } catch (error) {
-    console.error('Failed to get sentence embeddings, using fallback:', error);
-
-    // Fallback to local computation
-    return {
-      embeddings: computeFallbackEmbeddings(titles, dimensions),
-      model: 'fallback',
-      dimensions
-    };
+    console.error('Failed to get sentence embeddings:', error);
+    // NO FALLBACK - Better to fail than provide bad embeddings
+    throw new Error(`Failed to generate embeddings: ${error}. Please check your internet connection and try again.`);
   }
 }
 
@@ -222,18 +192,12 @@ export async function processYouTubeTitlesWithProgress(
     };
 
   } catch (error) {
-    console.error('Failed to get sentence embeddings, using fallback:', error);
-
-    // Fallback to local computation with progress
+    console.error('Failed to get sentence embeddings:', error);
+    // NO FALLBACK - Better to fail than provide bad embeddings
     if (onProgress) {
-      onProgress(1, 1, 'Using fallback embedding generation...');
+      onProgress(1, 1, 'ERROR: Failed to generate embeddings');
     }
-
-    return {
-      embeddings: computeFallbackEmbeddings(titles, dimensions),
-      model: 'fallback',
-      dimensions
-    };
+    throw new Error(`Failed to generate embeddings: ${error}. Please check your internet connection and try again.`);
   }
 }
 

@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
       if (clusteringConfig.k === -1 || clusteringConfig.k === 'auto') {
         console.log('Analyzing optimal K value...');
-        kOptimizationAnalysis = analyzeOptimalK(embeddings, Math.min(10, Math.floor(embeddings.length / 3)));
+        kOptimizationAnalysis = analyzeOptimalK(embeddings, Math.min(30, Math.floor(embeddings.length / 3)));
         finalK = kOptimizationAnalysis.optimalK;
         console.log(`Optimal K analysis complete. Recommended K: ${finalK}`);
       }

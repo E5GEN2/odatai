@@ -6,6 +6,7 @@ import {
   prepareDataForClustering,
   cosineSimilarity
 } from './word2vec';
+import { extractKeywords } from './stopwords';
 
 export interface ClusteringConfig {
   k: number;
@@ -141,19 +142,9 @@ export function generateClusterSummaries(
     // Calculate average distance
     const avgDistance = cluster.reduce((sum, item) => sum + item.distance, 0) / cluster.length;
 
-    // Extract most common words from this cluster
-    const wordCounts: Record<string, number> = {};
-    clusterTexts.forEach(text => {
-      text.tokens.forEach(token => {
-        wordCounts[token] = (wordCounts[token] || 0) + 1;
-      });
-    });
-
-    // Get top words
-    const topWords = Object.entries(wordCounts)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 5)
-      .map(([word]) => word);
+    // Extract meaningful keywords from this cluster (with stopwords removed)
+    const clusterTitles = cluster.map(item => item.title);
+    const topWords = extractKeywords(clusterTitles, 5);
 
     // Get example titles (shortest ones for readability)
     const examples = cluster

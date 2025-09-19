@@ -890,6 +890,13 @@ https://www.youtube.com/shorts/abc123"
                 <option value="8">8 clusters</option>
                 <option value="9">9 clusters</option>
                 <option value="10">10 clusters</option>
+                <option value="12">12 clusters</option>
+                <option value="15">15 clusters</option>
+                <option value="20">20 clusters</option>
+                <option value="25">25 clusters</option>
+                <option value="30">30 clusters</option>
+                <option value="40">40 clusters</option>
+                <option value="50">50 clusters</option>
               </select>
             </div>
             {clusteringConfig.k === -1 && (

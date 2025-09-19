@@ -248,7 +248,7 @@ export function findOptimalKSilhouette(data: number[][], maxK: number = 10): KOp
 }
 
 // Comprehensive K analysis combining both methods
-export function analyzeOptimalK(data: number[][], maxK: number = 10): KAnalysisResult {
+export function analyzeOptimalK(data: number[][], maxK: number = 30): KAnalysisResult {
   if (data.length < 4) {
     return {
       optimalK: 2,
