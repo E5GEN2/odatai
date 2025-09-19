@@ -48,6 +48,11 @@ export default function Home() {
     handleUnknown: false
   });
   const [kOptimizationResults, setKOptimizationResults] = useState<any>(null);
+  const [selectedCluster, setSelectedCluster] = useState<{
+    id: number;
+    summary: any;
+    videos: VideoData[];
+  } | null>(null);
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -251,6 +256,29 @@ export default function Home() {
     navigator.clipboard.writeText(text);
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  const handleClusterClick = (clusterId: number) => {
+    if (!clusteringResults || !clusterSummaries) return;
+
+    // Get videos for this cluster
+    const clusterVideos: VideoData[] = [];
+    clusteringResults.clusters[clusterId]?.forEach((clusterItem: any) => {
+      const matchingVideo = videos.find(v => v.title === clusterItem.title);
+      if (matchingVideo) {
+        clusterVideos.push(matchingVideo);
+      }
+    });
+
+    setSelectedCluster({
+      id: clusterId,
+      summary: clusterSummaries[clusterId],
+      videos: clusterVideos
+    });
+  };
+
+  const handleBackToAnalyze = () => {
+    setSelectedCluster(null);
   };
 
   // Run K-means clustering
@@ -594,7 +622,189 @@ https://www.youtube.com/shorts/abc123"
     </>
   );
 
-  const renderAnalyzeTab = () => (
+  const renderClusterDetailView = () => {
+    if (!selectedCluster) return null;
+
+    return (
+      <div className="space-y-6">
+        {/* Header with Back Button */}
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={handleBackToAnalyze}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors"
+          >
+            <span>←</span>
+            Back to Analysis
+          </button>
+          <div>
+            <h3 className="text-2xl font-semibold text-white">
+              Cluster {selectedCluster.id + 1} Details
+            </h3>
+            <p className="text-gray-400">
+              {selectedCluster.videos.length} video{selectedCluster.videos.length !== 1 ? 's' : ''} in this cluster
+            </p>
+          </div>
+        </div>
+
+        {/* Cluster Summary */}
+        <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-6">
+          <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <span>📊</span>
+            Cluster Summary
+          </h4>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h5 className="text-sm font-medium text-gray-300 mb-2">Top Keywords</h5>
+              <div className="flex flex-wrap gap-2">
+                {selectedCluster.summary.topWords?.map((word: string, index: number) => (
+                  <span key={index} className="text-xs px-3 py-1 bg-purple-600/20 text-purple-300 rounded-full border border-purple-600/30">
+                    {word}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h5 className="text-sm font-medium text-gray-300 mb-2">Cluster Stats</h5>
+              <div className="space-y-1 text-sm text-gray-400">
+                <div>Videos: {selectedCluster.summary.size}</div>
+                <div>Keywords: {selectedCluster.summary.topWords?.length || 0}</div>
+                <div>Examples: {selectedCluster.summary.examples?.length || 0}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <h5 className="text-sm font-medium text-gray-300 mb-2">Example Titles</h5>
+            <div className="space-y-1">
+              {selectedCluster.summary.examples?.map((example: string, index: number) => (
+                <div key={index} className="text-sm text-gray-400 italic">
+                  • {example}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Videos Table */}
+        <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 overflow-hidden">
+          <div className="p-6 border-b border-gray-800">
+            <h4 className="text-lg font-semibold text-white flex items-center gap-2">
+              <span>📺</span>
+              Videos in Cluster {selectedCluster.id + 1}
+            </h4>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-800 bg-gray-900/50">
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">#</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Title</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Channel</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Duration</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/50">
+                {selectedCluster.videos.map((video, index) => (
+                  <tr
+                    key={video.id}
+                    className="hover:bg-gray-900/30 transition-colors duration-200"
+                  >
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {index + 1}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-200 font-medium max-w-md">
+                        {video.title}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-400">
+                        {video.channel}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-950/50 text-purple-300 border border-purple-800/50">
+                        {video.duration}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={video.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-xs font-semibold rounded-xl hover:from-cyan-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-105"
+                        >
+                          Watch
+                        </a>
+                        <button
+                          onClick={() => copyToClipboard(video.title, index)}
+                          className="inline-flex items-center px-3 py-2 bg-gray-800/50 text-white text-xs font-semibold rounded-xl hover:bg-gray-700/50 transition-all duration-300 border border-gray-700"
+                        >
+                          {copiedIndex === index ? '✓' : '📋'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Additional Actions */}
+        <div className="flex justify-center gap-4">
+          <button
+            onClick={() => {
+              const csvContent = [
+                ['Title', 'Channel', 'Duration', 'URL'].join(','),
+                ...selectedCluster.videos.map(video =>
+                  [
+                    `"${video.title.replace(/"/g, '""')}"`,
+                    `"${video.channel.replace(/"/g, '""')}"`,
+                    video.duration,
+                    video.url
+                  ].join(',')
+                )
+              ].join('\n');
+
+              const blob = new Blob([csvContent], { type: 'text/csv' });
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `cluster-${selectedCluster.id + 1}-videos.csv`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(url);
+            }}
+            className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-300 font-medium"
+          >
+            📊 Export Cluster CSV
+          </button>
+
+          <button
+            onClick={handleBackToAnalyze}
+            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 font-medium"
+          >
+            🔍 Back to All Clusters
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAnalyzeTab = () => {
+    // Show cluster detail view if a cluster is selected
+    if (selectedCluster) {
+      return renderClusterDetailView();
+    }
+
+    return (
     <div className="space-y-8">
       {/* Data Source Info */}
       <div className="bg-gradient-to-r from-blue-950/30 to-purple-950/30 border border-blue-800/30 rounded-2xl p-6">
@@ -986,11 +1196,21 @@ https://www.youtube.com/shorts/abc123"
               <span>🎯</span>
               Cluster Analysis
             </h4>
+            <p className="text-sm text-gray-400 mb-4">
+              Click on any cluster to view detailed video list and analysis
+            </p>
             <div className="space-y-4">
               {clusterSummaries.map((summary) => (
-                <div key={summary.id} className="bg-gray-900/50 rounded-xl p-4 border border-gray-700">
+                <div
+                  key={summary.id}
+                  className="bg-gray-900/50 rounded-xl p-4 border border-gray-700 hover:border-blue-600/50 hover:bg-gray-800/50 transition-all duration-300 cursor-pointer transform hover:scale-105"
+                  onClick={() => handleClusterClick(summary.id)}
+                >
                   <div className="flex justify-between items-start mb-3">
-                    <h5 className="text-white font-semibold">Cluster {summary.id + 1}</h5>
+                    <h5 className="text-white font-semibold flex items-center gap-2">
+                      Cluster {summary.id + 1}
+                      <span className="text-blue-400 text-sm">→</span>
+                    </h5>
                     <span className="text-xs px-2 py-1 bg-blue-600/20 text-blue-300 rounded-full border border-blue-600/30">
                       {summary.size} videos
                     </span>
@@ -1032,7 +1252,8 @@ https://www.youtube.com/shorts/abc123"
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   return (
     <main className="min-h-screen relative overflow-hidden bg-black">
