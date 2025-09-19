@@ -169,13 +169,15 @@ export async function POST(request: NextRequest) {
             if (clusteringConfig.k === -1) {
               sendProgress('k-optimization', 'Analyzing optimal K using Elbow Method...', 62);
 
-              kOptimizationAnalysis = analyzeOptimalK(embeddings, Math.max(10, Math.floor(embeddings.length * 0.1)));
+              const maxK = Math.max(10, Math.floor(embeddings.length * 0.1));
+              kOptimizationAnalysis = analyzeOptimalK(embeddings, maxK, (k, maxK, message) => {
+                // Calculate progress from 62% to 68% based on current K
+                const progress = 62 + ((k - 2) / (maxK - 2)) * 6;
+                sendProgress('k-optimization', message, Math.round(progress));
+              });
               finalK = kOptimizationAnalysis.optimalK;
 
-              sendProgress('k-optimization', 'Computing Silhouette scores...', 65);
-              await new Promise(resolve => setTimeout(resolve, 300));
-
-              sendProgress('k-optimization', `Optimal K determined: ${finalK} clusters`, 68);
+              sendProgress('k-optimization', `Optimal K determined: ${finalK} clusters (tested K=2 to K=${maxK})`, 68);
             }
 
             sendProgress('clustering', `Initializing K-means with ${finalK} clusters...`, 70);

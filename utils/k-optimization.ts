@@ -248,7 +248,11 @@ export function findOptimalKSilhouette(data: number[][], maxK: number = 10): KOp
 }
 
 // Comprehensive K analysis combining both methods
-export function analyzeOptimalK(data: number[][], maxK: number = 30): KAnalysisResult {
+export function analyzeOptimalK(
+  data: number[][],
+  maxK: number = 30,
+  onProgress?: (k: number, maxK: number, message: string) => void
+): KAnalysisResult {
   if (data.length < 4) {
     return {
       optimalK: 2,
@@ -271,8 +275,18 @@ export function analyzeOptimalK(data: number[][], maxK: number = 30): KAnalysisR
 
   for (let k = minK; k <= actualMaxK; k++) {
     try {
+      // Report progress
+      if (onProgress) {
+        onProgress(k, actualMaxK, `Testing K=${k} clusters (${k-minK+1}/${actualMaxK-minK+1}): Running K-means clustering...`);
+      }
+
       const result = simpleKMeans(data, k);
       const wcss = calculateWCSS(data, result.clusters, result.centroids);
+
+      if (onProgress) {
+        onProgress(k, actualMaxK, `Testing K=${k} clusters: Computing silhouette score...`);
+      }
+
       const silhouette = calculateSilhouetteScore(data, result.clusters);
 
       let improvement = 0;
