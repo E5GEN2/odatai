@@ -36,17 +36,25 @@ export async function getSentenceEmbeddings(
   const API_URL = `https://api-inference.huggingface.co/models/${model}`;
   const maxRetries = 3;
 
+  console.log(`Calling Hugging Face API: ${API_URL}, texts: ${texts.length}, has API key: ${!!apiKey}`);
+
   try {
     // Add timeout to prevent hanging
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
+    // Only include Authorization header if API key is provided
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    };
+
+    if (apiKey && apiKey.trim() !== '') {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
     const response = await fetch(API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey && { 'Authorization': `Bearer ${apiKey}` })
-      },
+      headers,
       body: JSON.stringify({
         inputs: texts,
         options: { wait_for_model: true }
@@ -57,6 +65,16 @@ export async function getSentenceEmbeddings(
     clearTimeout(timeout);
 
     if (!response.ok) {
+      // Try to get error details from response body
+      let errorDetails = '';
+      try {
+        const errorBody = await response.text();
+        console.error('Hugging Face API error response:', errorBody);
+        errorDetails = errorBody;
+      } catch (e) {
+        console.error('Could not read error response body');
+      }
+
       let errorMessage = `Hugging Face API error: ${response.status}`;
 
       // Retry for model loading errors
@@ -67,10 +85,13 @@ export async function getSentenceEmbeddings(
       } else if (response.status === 503) {
         errorMessage = 'Model is still loading after multiple attempts, please try again later';
       } else if (response.status === 429) {
-        errorMessage = 'Rate limit exceeded, please wait a moment and try again';
+        errorMessage = 'Hugging Face API rate limit exceeded. Please wait 1-2 minutes and try again';
       } else if (response.status === 401) {
-        errorMessage = 'Invalid API key (if using one)';
+        errorMessage = 'Hugging Face API authentication failed. Try without API key for free tier usage';
+      } else if (response.status === 400) {
+        errorMessage = `Bad request to Hugging Face API: ${errorDetails}`;
       }
+
       throw new Error(errorMessage);
     }
 
