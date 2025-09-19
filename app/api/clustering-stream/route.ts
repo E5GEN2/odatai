@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
   const stream = new ReadableStream({
     start(controller) {
       const sendProgress = (stage: string, message: string, progress: number) => {
+        console.log(`[PROGRESS] ${progress}% - ${stage}: ${message}`);
         const data = JSON.stringify({ stage, message, progress });
         controller.enqueue(encoder.encode(`data: ${data}\n\n`));
       };
@@ -33,6 +34,13 @@ export async function POST(request: NextRequest) {
         try {
           const body = await request.json();
           const { titles, word2vecConfig, clusteringConfig, huggingFaceApiKey } = body;
+
+          console.log(`[START] Clustering request received:`);
+          console.log(`[START] - Titles: ${titles?.length || 0}`);
+          console.log(`[START] - Word2Vec approach: ${word2vecConfig?.approach}`);
+          console.log(`[START] - Word2Vec model: ${word2vecConfig?.model}`);
+          console.log(`[START] - Clustering K: ${clusteringConfig?.k}`);
+          console.log(`[START] - Has API key: ${!!huggingFaceApiKey}`);
 
           if (!titles || !Array.isArray(titles) || titles.length === 0) {
             sendError('Invalid titles array provided');
@@ -96,7 +104,9 @@ export async function POST(request: NextRequest) {
           const titlesToCluster = englishTitles;
 
           // Check if using Sentence Transformers
+          console.log(`[EMBEDDING] Approach: ${word2vecConfig.approach}, Titles to cluster: ${titlesToCluster.length}`);
           if (word2vecConfig.approach === 'sentence-transformers') {
+            console.log(`[EMBEDDING] Using sentence transformers with model: ${word2vecConfig.model}`);
             sendProgress('embeddings', `Loading sentence transformer model for ${titlesToCluster.length} English videos...`, 15);
 
             let embeddings;
@@ -125,6 +135,7 @@ export async function POST(request: NextRequest) {
               return;
             }
 
+            console.log(`[EMBEDDING] Got ${embeddings.length} embeddings, starting validation`);
             sendProgress('embeddings', 'Validating embedding dimensions...', 57);
 
             // Validate embedding dimensions
@@ -167,6 +178,7 @@ export async function POST(request: NextRequest) {
             let finalK = clusteringConfig.k;
 
             if (clusteringConfig.k === -1) {
+              console.log(`[K-OPT] Starting K optimization for ${embeddings.length} embeddings`);
               sendProgress('k-optimization', 'Analyzing optimal K using Elbow Method...', 62);
 
               const maxK = Math.max(10, Math.floor(embeddings.length * 0.1));
