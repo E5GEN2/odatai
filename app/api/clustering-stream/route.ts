@@ -125,14 +125,43 @@ export async function POST(request: NextRequest) {
               return;
             }
 
-            sendProgress('embeddings', 'Normalizing embedding vectors...', 57);
+            sendProgress('embeddings', 'Validating embedding dimensions...', 57);
 
-            // Simulate normalization steps with small delays
-            await new Promise(resolve => setTimeout(resolve, 200));
-            sendProgress('embeddings', 'Validating embedding dimensions and quality...', 58);
+            // Validate embedding dimensions
+            const expectedDim = 384; // BGE model dimensions
+            const actualDim = embeddings[0].length;
+            if (actualDim !== expectedDim) {
+              console.warn(`Warning: Expected ${expectedDim} dimensions, got ${actualDim}`);
+            }
 
-            await new Promise(resolve => setTimeout(resolve, 200));
-            sendProgress('embeddings', 'Computing embedding statistics...', 60);
+            sendProgress('embeddings', 'Checking for invalid values (NaN/Infinity)...', 58);
+
+            // Check for invalid values
+            let invalidCount = 0;
+            for (let i = 0; i < Math.min(embeddings.length, 10); i++) {
+              for (let j = 0; j < embeddings[i].length; j++) {
+                if (!isFinite(embeddings[i][j])) {
+                  invalidCount++;
+                }
+              }
+            }
+
+            sendProgress('embeddings', 'Computing embedding statistics and quality metrics...', 59);
+
+            // Compute basic statistics
+            const sampleSize = Math.min(embeddings.length, 100);
+            let minVal = Infinity, maxVal = -Infinity, sumSq = 0;
+            for (let i = 0; i < sampleSize; i++) {
+              for (let j = 0; j < embeddings[i].length; j++) {
+                const val = embeddings[i][j];
+                minVal = Math.min(minVal, val);
+                maxVal = Math.max(maxVal, val);
+                sumSq += val * val;
+              }
+            }
+            const avgMagnitude = Math.sqrt(sumSq / (sampleSize * actualDim));
+
+            sendProgress('embeddings', `Quality check: ${actualDim}D vectors, range [${minVal.toFixed(3)}, ${maxVal.toFixed(3)}], avg magnitude ${avgMagnitude.toFixed(3)}`, 60);
 
             // Analyze optimal K if requested
             let finalK = clusteringConfig.k;
