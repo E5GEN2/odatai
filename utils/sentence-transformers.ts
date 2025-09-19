@@ -9,10 +9,15 @@ export interface SentenceTransformerConfig {
 
 // Popular sentence transformer models
 export const SENTENCE_TRANSFORMER_MODELS = {
+  'bge-small-en-v1.5': {
+    name: 'BAAI/bge-small-en-v1.5',
+    dimensions: 384,
+    description: 'Fast and accurate, good balance (similar to all-MiniLM-L6-v2)'
+  },
   'all-MiniLM-L6-v2': {
     name: 'all-MiniLM-L6-v2',
     dimensions: 384,
-    description: 'Fast and accurate, good balance'
+    description: 'Fast and accurate, good balance (Note: API returns similarity scores, not embeddings)'
   },
   'all-mpnet-base-v2': {
     name: 'all-mpnet-base-v2',
@@ -29,7 +34,7 @@ export const SENTENCE_TRANSFORMER_MODELS = {
 // Call Hugging Face Inference API to get embeddings
 export async function getSentenceEmbeddings(
   texts: string[],
-  model: string = 'sentence-transformers/all-MiniLM-L6-v2',
+  model: string = 'BAAI/bge-small-en-v1.5', // Changed default to working model
   apiKey?: string,
   retryCount: number = 0
 ): Promise<number[][]> {
@@ -126,7 +131,7 @@ export async function getEmbeddingsFree(
   // Use the free tier (may be rate limited)
   return getSentenceEmbeddings(
     texts,
-    'sentence-transformers/all-MiniLM-L6-v2'
+    'BAAI/bge-small-en-v1.5' // Using BGE model that actually works
   );
 }
 
@@ -142,7 +147,7 @@ export async function processYouTubeTitles(
   model: string;
   dimensions: number;
 }> {
-  const model = config?.model || 'sentence-transformers/all-MiniLM-L6-v2';
+  const model = config?.model || 'BAAI/bge-small-en-v1.5'; // Default to working model
   const dimensions = config?.dimensions || 384;
 
   try {
@@ -196,7 +201,7 @@ export async function processYouTubeTitlesWithProgress(
 }> {
   const config = options?.config;
   const onProgress = options?.onProgress;
-  const model = config?.model || 'sentence-transformers/all-MiniLM-L6-v2';
+  const model = config?.model || 'BAAI/bge-small-en-v1.5'; // Default to working model
   const dimensions = config?.dimensions || 384;
 
   try {
