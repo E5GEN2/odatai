@@ -160,6 +160,83 @@ export async function processYouTubeTitles(
   }
 }
 
+// Enhanced version with progress callback support
+export async function processYouTubeTitlesWithProgress(
+  titles: string[],
+  options?: {
+    config?: Partial<SentenceTransformerConfig>;
+    onProgress?: (batch: number, totalBatches: number, message: string) => void;
+  }
+): Promise<{
+  embeddings: number[][];
+  model: string;
+  dimensions: number;
+}> {
+  const config = options?.config;
+  const onProgress = options?.onProgress;
+  const model = config?.model || 'sentence-transformers/all-MiniLM-L6-v2';
+  const dimensions = config?.dimensions || 384;
+
+  try {
+    console.log(`Getting embeddings for ${titles.length} titles using ${model}...`);
+
+    // Batch process if needed (API might have limits)
+    const batchSize = 100;
+    const totalBatches = Math.ceil(titles.length / batchSize);
+    const allEmbeddings: number[][] = [];
+
+    for (let i = 0; i < titles.length; i += batchSize) {
+      const batchNumber = Math.floor(i / batchSize) + 1;
+      const batch = titles.slice(i, i + batchSize);
+
+      // Report progress
+      if (onProgress) {
+        const startVideo = i + 1;
+        const endVideo = Math.min(i + batchSize, titles.length);
+        onProgress(
+          batchNumber,
+          totalBatches,
+          `Processing batch ${batchNumber}/${totalBatches}: Generating embeddings for videos ${startVideo}-${endVideo}...`
+        );
+      }
+
+      const batchEmbeddings = await getSentenceEmbeddings(
+        batch,
+        model,
+        config?.apiKey
+      );
+      allEmbeddings.push(...batchEmbeddings);
+
+      // Small delay to respect rate limits
+      if (i + batchSize < titles.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    console.log(`Successfully generated ${allEmbeddings.length} embeddings`);
+
+    return {
+      embeddings: allEmbeddings,
+      model,
+      dimensions
+    };
+
+  } catch (error) {
+    console.error('Failed to get sentence embeddings, using fallback:', error);
+
+    // Fallback to local computation with progress
+    if (onProgress) {
+      onProgress(1, 1, 'Using fallback embedding generation...');
+    }
+
+    return {
+      embeddings: computeFallbackEmbeddings(titles, dimensions),
+      model: 'fallback',
+      dimensions
+    };
+  }
+}
+
 // Compare two embeddings using cosine similarity
 export function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length) {

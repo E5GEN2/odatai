@@ -281,7 +281,7 @@ export default function Home() {
     setSelectedCluster(null);
   };
 
-  // Run K-means clustering
+  // Run K-means clustering with real-time progress
   const runClustering = async () => {
     if (videos.length === 0) {
       setClusteringError('No video data available. Please fetch videos first.');
@@ -298,18 +298,12 @@ export default function Home() {
     setClusteringResults(null);
     setClusteringProgress({
       stage: 'initialization',
-      message: 'Preparing analysis environment...',
-      progress: 5
+      message: 'Connecting to clustering service...',
+      progress: 1
     });
 
     try {
       const titles = videos.map(video => video.title);
-
-      setClusteringProgress({
-        stage: 'config',
-        message: 'Configuring embedding model and parameters...',
-        progress: 10
-      });
 
       // Configure Word2Vec
       const word2vecConfig: Word2VecConfig = {
@@ -322,154 +316,90 @@ export default function Home() {
         handleUnknown: clusteringConfig.handleUnknown
       };
 
-      console.log('Starting clustering with config:', { word2vecConfig, clusteringConfig });
+      console.log('Starting clustering with streaming progress:', { word2vecConfig, clusteringConfig });
 
-      // More detailed embedding progress
-      if (clusteringConfig.word2vecApproach === 'sentence-transformers') {
-        setClusteringProgress({
-          stage: 'embeddings',
-          message: `Loading sentence transformer model for ${titles.length} videos...`,
-          progress: 15
-        });
+      // Use streaming API for real-time progress updates
+      const response = await fetch('/api/clustering-stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          titles,
+          word2vecConfig,
+          clusteringConfig
+        }),
+      });
 
-        // Calculate batches for progress reporting
-        const batchSize = 100;
-        const totalBatches = Math.ceil(titles.length / batchSize);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-        setClusteringProgress({
-          stage: 'embeddings',
-          message: `Processing embeddings in ${totalBatches} batch${totalBatches > 1 ? 'es' : ''} (${batchSize} videos per batch)...`,
-          progress: 20
-        });
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-        // Simulate embedding progress (will be replaced with actual progress from API)
-        for (let batch = 1; batch <= totalBatches; batch++) {
-          const batchProgress = 20 + (batch / totalBatches) * 35; // 20% to 55%
-          setClusteringProgress({
-            stage: 'embeddings',
-            message: `Processing batch ${batch}/${totalBatches}: Generating embeddings for videos ${(batch-1)*batchSize + 1}-${Math.min(batch*batchSize, titles.length)}...`,
-            progress: batchProgress
-          });
+      if (!reader) {
+        throw new Error('Failed to get response reader');
+      }
 
-          // Small delay to show progress
-          if (batch < totalBatches) {
-            await new Promise(resolve => setTimeout(resolve, 200));
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        // Decode the chunk and add to buffer
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete lines
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.type === 'error') {
+                throw new Error(data.error);
+              } else if (data.type === 'result') {
+                // Final result received
+                if (data.success) {
+                  setClusteringResults(data.data.results);
+                  setClusterSummaries(data.data.summaries);
+                  setKOptimizationResults(data.data.kOptimization);
+
+                  console.log('Clustering completed via stream:', {
+                    clusters: data.data.results.clusters.length,
+                    totalVideos: data.data.results.statistics.totalVideos,
+                    processingTime: data.data.results.statistics.processingTime,
+                    kOptimization: data.data.kOptimization
+                  });
+
+                  // Clear progress after a brief delay
+                  setTimeout(() => setClusteringProgress(null), 3000);
+                } else {
+                  throw new Error(data.data.error || 'Clustering failed');
+                }
+              } else {
+                // Progress update
+                setClusteringProgress({
+                  stage: data.stage,
+                  message: data.message,
+                  progress: data.progress
+                });
+              }
+            } catch (parseError) {
+              console.warn('Failed to parse SSE data:', line, parseError);
+            }
           }
         }
-
-        setClusteringProgress({
-          stage: 'embeddings',
-          message: 'Normalizing and validating embeddings...',
-          progress: 58
-        });
-      } else {
-        setClusteringProgress({
-          stage: 'embeddings',
-          message: `Building ${clusteringConfig.word2vecApproach} vocabulary from ${titles.length} video titles...`,
-          progress: 25
-        });
-
-        setClusteringProgress({
-          stage: 'embeddings',
-          message: `Training ${clusteringConfig.word2vecApproach} model with ${clusteringConfig.dimensions}D vectors...`,
-          progress: 35
-        });
-
-        setClusteringProgress({
-          stage: 'embeddings',
-          message: `Generating ${clusteringConfig.aggregation} aggregated embeddings...`,
-          progress: 50
-        });
-      }
-
-      // Call API endpoint for clustering
-      const response = await axios.post('/api/clustering', {
-        titles,
-        word2vecConfig,
-        clusteringConfig
-      });
-
-      // K-optimization progress if needed
-      if (clusteringConfig.k === -1) {
-        setClusteringProgress({
-          stage: 'k-optimization',
-          message: 'Analyzing optimal number of clusters using Elbow Method...',
-          progress: 60
-        });
-
-        setClusteringProgress({
-          stage: 'k-optimization',
-          message: 'Computing Silhouette scores for different K values...',
-          progress: 65
-        });
-
-        setClusteringProgress({
-          stage: 'k-optimization',
-          message: 'Finding optimal K through consensus analysis...',
-          progress: 68
-        });
-      }
-
-      // Clustering progress
-      const finalK = response.data.kOptimization?.optimalK || clusteringConfig.k;
-
-      setClusteringProgress({
-        stage: 'clustering',
-        message: `Initializing ${clusteringConfig.algorithm} clustering with ${finalK} clusters...`,
-        progress: 70
-      });
-
-      setClusteringProgress({
-        stage: 'clustering',
-        message: `Running ${clusteringConfig.algorithm} algorithm: Assigning ${titles.length} videos to clusters...`,
-        progress: 75
-      });
-
-      setClusteringProgress({
-        stage: 'clustering',
-        message: 'Computing cluster centroids and convergence...',
-        progress: 85
-      });
-
-      setClusteringProgress({
-        stage: 'post-processing',
-        message: 'Generating cluster summaries and statistics...',
-        progress: 90
-      });
-
-      setClusteringProgress({
-        stage: 'post-processing',
-        message: 'Extracting keywords and creating cluster insights...',
-        progress: 95
-      });
-
-      if (response.data.success) {
-        setClusteringProgress({
-          stage: 'completed',
-          message: `Analysis completed! Generated ${response.data.results.clusters.length} clusters with ${response.data.results.statistics.totalVideos} videos.`,
-          progress: 100
-        });
-
-        setClusteringResults(response.data.results);
-        setClusterSummaries(response.data.summaries);
-        setKOptimizationResults(response.data.kOptimization);
-
-        console.log('Clustering completed:', {
-          clusters: response.data.results.clusters.length,
-          totalVideos: response.data.results.statistics.totalVideos,
-          processingTime: response.data.results.statistics.processingTime,
-          kOptimization: response.data.kOptimization
-        });
-
-        // Clear progress after a brief delay
-        setTimeout(() => setClusteringProgress(null), 3000);
-      } else {
-        throw new Error(response.data.error || 'Clustering failed');
       }
 
     } catch (err: any) {
       console.error('Clustering error:', err);
-      const errorMessage = err.response?.data?.error || err.message || 'Unknown error';
+      const errorMessage = err.message || 'Unknown error';
       setClusteringError(`Clustering failed: ${errorMessage}`);
       setClusteringProgress(null);
     } finally {
