@@ -90,9 +90,13 @@ export function detectLanguage(text: string): LanguageDetectionResult {
   const englishWordCount = words.filter(word => COMMON_ENGLISH_WORDS.has(word)).length;
   const englishWordRatio = words.length > 0 ? englishWordCount / words.length : 0;
 
-  // Determine if English based on word analysis
-  const isEnglish = englishWordRatio > 0.15 && nonLatinRatio < 0.1;
-  const confidence = Math.min(1, (englishWordRatio * 2) * (1 - nonLatinRatio));
+  // Determine if English based on multiple factors
+  // If it's mostly Latin script with no/few non-Latin characters, likely English
+  // Lower the English word requirement since many YouTube titles use brand names, game names, etc.
+  const isEnglish = (englishWordRatio > 0.05 || (nonLatinRatio < 0.05 && words.length > 0)) && nonLatinRatio < 0.2;
+  const confidence = nonLatinRatio < 0.05
+    ? Math.max(0.6, Math.min(1, englishWordRatio * 3)) // High confidence for pure Latin text
+    : Math.min(1, (englishWordRatio * 2) * (1 - nonLatinRatio));
 
   return {
     isEnglish,
