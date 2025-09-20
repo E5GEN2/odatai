@@ -58,6 +58,8 @@ export default function Home() {
   } | null>(null);
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const [loadingThumbnails, setLoadingThumbnails] = useState(false);
+  const [thumbnailProgress, setThumbnailProgress] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -98,6 +100,7 @@ export default function Home() {
     }
 
     setLoadingThumbnails(true);
+    setThumbnailProgress(`Extracting video IDs...`);
 
     try {
       // Extract video IDs from URLs
@@ -107,8 +110,11 @@ export default function Home() {
 
       if (videoIds.length === 0) {
         setLoadingThumbnails(false);
+        setThumbnailProgress(null);
         return;
       }
+
+      setThumbnailProgress(`Loading thumbnails for ${videoIds.length} videos...`);
 
       const response = await fetch('/api/youtube-thumbnails', {
         method: 'POST',
@@ -123,12 +129,20 @@ export default function Home() {
 
       if (response.ok) {
         const data = await response.json();
+        const thumbnailCount = Object.keys(data.thumbnails || {}).length;
         setThumbnails(data.thumbnails || {});
+        setThumbnailProgress(null);
+
+        if (thumbnailCount > 0) {
+          console.log(`Successfully loaded ${thumbnailCount} thumbnails`);
+        }
       } else {
         console.error('Failed to fetch thumbnails:', await response.text());
+        setThumbnailProgress(null);
       }
     } catch (error) {
       console.error('Error fetching thumbnails:', error);
+      setThumbnailProgress(null);
     } finally {
       setLoadingThumbnails(false);
     }
@@ -331,6 +345,7 @@ export default function Home() {
   const handleBackToAnalyze = () => {
     setSelectedCluster(null);
     setThumbnails({}); // Clear thumbnails when going back
+    setThumbnailProgress(null); // Clear progress message
   };
 
   // Run K-means clustering with real-time progress
@@ -783,113 +798,220 @@ https://www.youtube.com/shorts/abc123"
               <span>📺</span>
               Videos in Cluster {selectedCluster.id + 1}
             </h4>
-            <button
-              onClick={() => fetchThumbnails(selectedCluster.videos)}
-              disabled={loadingThumbnails || !apiKey.trim()}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg flex items-center gap-2 transition-colors duration-200"
-            >
-              {loadingThumbnails ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Loading...
-                </>
-              ) : (
-                <>
-                  <span>🖼️</span>
-                  Load Thumbnails
-                </>
-              )}
-            </button>
+
+            <div className="flex items-center gap-3">
+              {/* View Mode Toggle */}
+              <div className="flex bg-gray-800 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'table'
+                      ? 'bg-gray-700 text-white'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  📊 Table
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'grid'
+                      ? 'bg-gray-700 text-white'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  🎬 Grid
+                </button>
+              </div>
+
+              <button
+                onClick={() => fetchThumbnails(selectedCluster.videos)}
+                disabled={loadingThumbnails || !apiKey.trim()}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg flex items-center gap-2 transition-colors duration-200"
+              >
+                {loadingThumbnails ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    {thumbnailProgress || 'Loading...'}
+                  </>
+                ) : (
+                  <>
+                    <span>🖼️</span>
+                    Load Thumbnails
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-800 bg-gray-900/50">
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">#</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Thumbnail</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Title</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Channel</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Duration</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/50">
-                {selectedCluster.videos.map((video, index) => (
-                  <tr
-                    key={video.id}
-                    className="hover:bg-gray-900/30 transition-colors duration-200"
-                  >
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {index + 1}
-                    </td>
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const videoId = extractVideoId(video.url);
-                        const thumbnailUrl = videoId ? thumbnails[videoId] : null;
+          {viewMode === 'table' ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-800 bg-gray-900/50">
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">#</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Thumbnail</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Title</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Channel</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Duration</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/50">
+                  {selectedCluster.videos.map((video, index) => (
+                    <tr
+                      key={video.id}
+                      className="hover:bg-gray-900/30 transition-colors duration-200"
+                    >
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {index + 1}
+                      </td>
+                      <td className="px-6 py-4">
+                        {(() => {
+                          const videoId = extractVideoId(video.url);
+                          const thumbnailUrl = videoId ? thumbnails[videoId] : null;
 
-                        if (loadingThumbnails) {
-                          return (
-                            <div className="w-20 h-12 bg-gray-800 rounded animate-pulse flex items-center justify-center">
-                              <span className="text-xs text-gray-500">...</span>
+                          if (loadingThumbnails) {
+                            return (
+                              <div className="w-20 h-12 bg-gray-800 rounded animate-pulse flex items-center justify-center">
+                                <span className="text-xs text-gray-500">...</span>
+                              </div>
+                            );
+                          }
+
+                          return thumbnailUrl ? (
+                            <img
+                              src={thumbnailUrl}
+                              alt={`Thumbnail for ${video.title}`}
+                              className="w-20 h-12 object-cover rounded border border-gray-700"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-20 h-12 bg-gray-800 rounded flex items-center justify-center">
+                              <span className="text-xs text-gray-500">No thumb</span>
                             </div>
                           );
-                        }
+                        })()}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-200 font-medium max-w-md">
+                          {video.title}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-400">
+                          {video.channel}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-950/50 text-purple-300 border border-purple-800/50">
+                          {video.duration}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={video.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-xs font-semibold rounded-xl hover:from-cyan-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-105"
+                          >
+                            Watch
+                          </a>
+                          <button
+                            onClick={() => copyToClipboard(video.title, index)}
+                            className="inline-flex items-center px-3 py-2 bg-gray-800/50 text-white text-xs font-semibold rounded-xl hover:bg-gray-700/50 transition-all duration-300 border border-gray-700"
+                          >
+                            {copiedIndex === index ? '✓' : '📋'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* YouTube-style Grid View */
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {selectedCluster.videos.map((video, index) => {
+                  const videoId = extractVideoId(video.url);
+                  const thumbnailUrl = videoId ? thumbnails[videoId] : null;
 
-                        return thumbnailUrl ? (
+                  return (
+                    <div
+                      key={video.id}
+                      className="group bg-transparent hover:bg-gray-900/20 rounded-xl transition-all duration-200 p-2 hover:scale-[1.02] cursor-pointer"
+                      onClick={() => window.open(video.url, '_blank')}
+                    >
+                      {/* Thumbnail */}
+                      <div className="relative aspect-video bg-gray-800 rounded-lg overflow-hidden mb-3">
+                        {loadingThumbnails ? (
+                          <div className="w-full h-full bg-gray-800 animate-pulse flex items-center justify-center">
+                            <div className="text-gray-500 text-sm">Loading...</div>
+                          </div>
+                        ) : thumbnailUrl ? (
                           <img
                             src={thumbnailUrl}
                             alt={`Thumbnail for ${video.title}`}
-                            className="w-20 h-12 object-cover rounded border border-gray-700"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display = 'none';
                             }}
                           />
                         ) : (
-                          <div className="w-20 h-12 bg-gray-800 rounded flex items-center justify-center">
-                            <span className="text-xs text-gray-500">No thumb</span>
+                          <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                            <div className="text-gray-500 text-sm">No thumbnail</div>
                           </div>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-200 font-medium max-w-md">
-                        {video.title}
+                        )}
+
+                        {/* Duration Badge */}
+                        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-1 rounded">
+                          {video.duration}
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-400">
-                        {video.channel}
+
+                      {/* Video Info */}
+                      <div className="flex gap-3">
+                        {/* Channel Avatar Placeholder */}
+                        <div className="w-9 h-9 bg-gray-700 rounded-full flex-shrink-0 flex items-center justify-center">
+                          <span className="text-xs text-gray-400">{video.channel?.charAt(0) || '?'}</span>
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          {/* Title */}
+                          <h3 className="text-white text-sm font-medium leading-5 mb-1 group-hover:text-blue-400 transition-colors overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                            {video.title}
+                          </h3>
+
+                          {/* Channel Name */}
+                          <p className="text-gray-400 text-xs mb-1 truncate">
+                            {video.channel}
+                          </p>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-2 mt-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyToClipboard(video.title, index);
+                              }}
+                              className="inline-flex items-center px-2 py-1 bg-gray-800/50 text-white text-xs rounded hover:bg-gray-700/50 transition-colors"
+                            >
+                              {copiedIndex === index ? '✓ Copied' : '📋 Copy'}
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-950/50 text-purple-300 border border-purple-800/50">
-                        {video.duration}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={video.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-xs font-semibold rounded-xl hover:from-cyan-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-105"
-                        >
-                          Watch
-                        </a>
-                        <button
-                          onClick={() => copyToClipboard(video.title, index)}
-                          className="inline-flex items-center px-3 py-2 bg-gray-800/50 text-white text-xs font-semibold rounded-xl hover:bg-gray-700/50 transition-all duration-300 border border-gray-700"
-                        >
-                          {copiedIndex === index ? '✓' : '📋'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Additional Actions */}
