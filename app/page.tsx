@@ -56,6 +56,8 @@ export default function Home() {
     summary: any;
     videos: VideoData[];
   } | null>(null);
+  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const [loadingThumbnails, setLoadingThumbnails] = useState(false);
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -87,6 +89,49 @@ export default function Home() {
     if (seconds > 0) parts.push(`${seconds}s`);
 
     return parts.join(' ') || '0s';
+  };
+
+  const fetchThumbnails = async (videos: VideoData[]) => {
+    if (!apiKey.trim()) {
+      console.warn('YouTube API key not available for thumbnail fetching');
+      return;
+    }
+
+    setLoadingThumbnails(true);
+
+    try {
+      // Extract video IDs from URLs
+      const videoIds = videos
+        .map(video => extractVideoId(video.url))
+        .filter((id): id is string => id !== null);
+
+      if (videoIds.length === 0) {
+        setLoadingThumbnails(false);
+        return;
+      }
+
+      const response = await fetch('/api/youtube-thumbnails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          videoIds,
+          apiKey: apiKey.trim()
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setThumbnails(data.thumbnails || {});
+      } else {
+        console.error('Failed to fetch thumbnails:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error fetching thumbnails:', error);
+    } finally {
+      setLoadingThumbnails(false);
+    }
   };
 
   const fetchVideoData = async (append: boolean = false) => {
@@ -278,6 +323,9 @@ export default function Home() {
       summary: clusterSummaries[clusterId],
       videos: clusterVideos
     });
+
+    // Fetch thumbnails for the cluster videos
+    fetchThumbnails(clusterVideos);
   };
 
   const handleBackToAnalyze = () => {
@@ -741,6 +789,7 @@ https://www.youtube.com/shorts/abc123"
               <thead>
                 <tr className="border-b border-gray-800 bg-gray-900/50">
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">#</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Thumbnail</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Title</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Channel</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Duration</th>
@@ -755,6 +804,35 @@ https://www.youtube.com/shorts/abc123"
                   >
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {index + 1}
+                    </td>
+                    <td className="px-6 py-4">
+                      {(() => {
+                        const videoId = extractVideoId(video.url);
+                        const thumbnailUrl = videoId ? thumbnails[videoId] : null;
+
+                        if (loadingThumbnails) {
+                          return (
+                            <div className="w-20 h-12 bg-gray-800 rounded animate-pulse flex items-center justify-center">
+                              <span className="text-xs text-gray-500">...</span>
+                            </div>
+                          );
+                        }
+
+                        return thumbnailUrl ? (
+                          <img
+                            src={thumbnailUrl}
+                            alt={`Thumbnail for ${video.title}`}
+                            className="w-20 h-12 object-cover rounded border border-gray-700"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-20 h-12 bg-gray-800 rounded flex items-center justify-center">
+                            <span className="text-xs text-gray-500">No thumb</span>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-gray-200 font-medium max-w-md">
