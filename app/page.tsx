@@ -51,6 +51,7 @@ export default function Home() {
     handleUnknown: false
   });
   const [kOptimizationResults, setKOptimizationResults] = useState<any>(null);
+  const [processedTexts, setProcessedTexts] = useState<any[]>([]);
   const [selectedCluster, setSelectedCluster] = useState<{
     id: number;
     summary: any;
@@ -450,6 +451,7 @@ export default function Home() {
     setIsClusteringLoading(true);
     setClusteringError('');
     setClusteringResults(null);
+    setProcessedTexts([]);
     setClusteringProgress({
       stage: 'initialization',
       message: 'Connecting to clustering service...',
@@ -525,6 +527,7 @@ export default function Home() {
                   setClusteringResults(data.data.results);
                   setClusterSummaries(data.data.summaries);
                   setKOptimizationResults(data.data.kOptimization);
+                  setProcessedTexts(data.data.processedTexts || []);
 
                   console.log('Clustering completed via stream:', {
                     clusters: data.data.results.clusters.length,
