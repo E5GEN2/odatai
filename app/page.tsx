@@ -324,12 +324,13 @@ export default function Home() {
       videos: clusterVideos
     });
 
-    // Fetch thumbnails for the cluster videos
-    fetchThumbnails(clusterVideos);
+    // Clear any existing thumbnails when switching clusters
+    setThumbnails({});
   };
 
   const handleBackToAnalyze = () => {
     setSelectedCluster(null);
+    setThumbnails({}); // Clear thumbnails when going back
   };
 
   // Run K-means clustering with real-time progress
@@ -777,11 +778,28 @@ https://www.youtube.com/shorts/abc123"
 
         {/* Videos Table */}
         <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 overflow-hidden">
-          <div className="p-6 border-b border-gray-800">
+          <div className="p-6 border-b border-gray-800 flex justify-between items-center">
             <h4 className="text-lg font-semibold text-white flex items-center gap-2">
               <span>📺</span>
               Videos in Cluster {selectedCluster.id + 1}
             </h4>
+            <button
+              onClick={() => fetchThumbnails(selectedCluster.videos)}
+              disabled={loadingThumbnails || !apiKey.trim()}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg flex items-center gap-2 transition-colors duration-200"
+            >
+              {loadingThumbnails ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <span>🖼️</span>
+                  Load Thumbnails
+                </>
+              )}
+            </button>
           </div>
 
           <div className="overflow-x-auto">
