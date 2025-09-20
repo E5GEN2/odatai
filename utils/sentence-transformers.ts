@@ -43,10 +43,11 @@ export async function getSentenceEmbeddings(
 
   console.log(`Calling Hugging Face API: ${API_URL}, texts: ${texts.length}, has API key: ${!!apiKey}`);
 
+  // Add longer timeout for larger models (BGE Base/Large need more time)
+  const isLargerModel = model.includes('bge-base') || model.includes('bge-large');
+
   try {
-    // Add longer timeout for larger models (BGE Base/Large need more time)
     const controller = new AbortController();
-    const isLargerModel = model.includes('bge-base') || model.includes('bge-large');
     const timeoutDuration = isLargerModel ? 60000 : 30000; // 60s for larger models, 30s for others
     const timeout = setTimeout(() => controller.abort(), timeoutDuration);
 
