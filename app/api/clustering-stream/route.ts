@@ -138,11 +138,17 @@ export async function POST(request: NextRequest) {
             console.log(`[EMBEDDING] Got ${embeddings.length} embeddings, starting validation`);
             sendProgress('embeddings', 'Validating embedding dimensions...', 57);
 
-            // Validate embedding dimensions
-            const expectedDim = 384; // BGE model dimensions
+            // Validate embedding dimensions based on model
+            let expectedDim = 384; // Default for BGE small and MiniLM models
+            if (word2vecConfig.model === 'BAAI/bge-base-en-v1.5') {
+              expectedDim = 768;
+            } else if (word2vecConfig.model === 'BAAI/bge-large-en-v1.5') {
+              expectedDim = 1024;
+            }
+
             const actualDim = embeddings[0].length;
             if (actualDim !== expectedDim) {
-              console.warn(`Warning: Expected ${expectedDim} dimensions, got ${actualDim}`);
+              console.warn(`Warning: Expected ${expectedDim} dimensions for model ${word2vecConfig.model}, got ${actualDim}`);
             }
 
             sendProgress('embeddings', 'Checking for invalid values (NaN/Infinity)...', 58);

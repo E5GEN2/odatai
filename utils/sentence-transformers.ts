@@ -12,22 +12,22 @@ export const SENTENCE_TRANSFORMER_MODELS = {
   'bge-small-en-v1.5': {
     name: 'BAAI/bge-small-en-v1.5',
     dimensions: 384,
-    description: 'Fast and accurate, good balance (similar to all-MiniLM-L6-v2)'
+    description: 'Fast and accurate, good balance'
+  },
+  'bge-base-en-v1.5': {
+    name: 'BAAI/bge-base-en-v1.5',
+    dimensions: 768,
+    description: 'Better quality, 768D - PERFECT for deeper clustering!'
+  },
+  'bge-large-en-v1.5': {
+    name: 'BAAI/bge-large-en-v1.5',
+    dimensions: 1024,
+    description: 'Highest quality, 1024D - May be slower'
   },
   'all-MiniLM-L6-v2': {
     name: 'all-MiniLM-L6-v2',
     dimensions: 384,
-    description: 'Fast and accurate, good balance (Note: API returns similarity scores, not embeddings)'
-  },
-  'all-mpnet-base-v2': {
-    name: 'all-mpnet-base-v2',
-    dimensions: 768,
-    description: 'Best quality, slower'
-  },
-  'paraphrase-multilingual-MiniLM-L12-v2': {
-    name: 'paraphrase-multilingual-MiniLM-L12-v2',
-    dimensions: 384,
-    description: 'Multilingual support'
+    description: 'Fast but returns similarity scores, not embeddings'
   }
 };
 

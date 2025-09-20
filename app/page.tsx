@@ -1243,13 +1243,31 @@ https://www.youtube.com/shorts/abc123"
                 </label>
                 <select
                   value={clusteringConfig.sentenceTransformerModel}
-                  onChange={(e) => setClusteringConfig({...clusteringConfig, sentenceTransformerModel: e.target.value})}
+                  onChange={(e) => {
+                    const model = e.target.value;
+                    let dimensions = 384; // default
+
+                    // Set appropriate dimensions based on model
+                    if (model === 'BAAI/bge-base-en-v1.5') {
+                      dimensions = 768;
+                    } else if (model === 'BAAI/bge-large-en-v1.5') {
+                      dimensions = 1024;
+                    } else if (model === 'BAAI/bge-small-en-v1.5' || model === 'all-MiniLM-L6-v2') {
+                      dimensions = 384;
+                    }
+
+                    setClusteringConfig({
+                      ...clusteringConfig,
+                      sentenceTransformerModel: model,
+                      dimensions: dimensions
+                    });
+                  }}
                   className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="BAAI/bge-small-en-v1.5">BGE Small English (Fast, 384D) - Recommended</option>
-                  <option value="all-MiniLM-L6-v2">all-MiniLM-L6-v2 (Fast, 384D) - Not Working</option>
-                  <option value="all-mpnet-base-v2">all-mpnet-base-v2 (Best Quality, 768D) - Not Working</option>
-                  <option value="paraphrase-multilingual">Multilingual Support (384D) - Not Working</option>
+                  <option value="BAAI/bge-small-en-v1.5">BGE Small (Fast, 384D) - Current Default</option>
+                  <option value="BAAI/bge-base-en-v1.5">BGE Base (Better, 768D) - ⭐ RECOMMENDED for Deeper Clustering</option>
+                  <option value="BAAI/bge-large-en-v1.5">BGE Large (Best, 1024D) - Highest Quality</option>
+                  <option value="all-MiniLM-L6-v2">MiniLM-L6 (384D) - Returns Similarity Scores</option>
                 </select>
               </div>
 
