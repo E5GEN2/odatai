@@ -44,9 +44,11 @@ export async function getSentenceEmbeddings(
   console.log(`Calling Hugging Face API: ${API_URL}, texts: ${texts.length}, has API key: ${!!apiKey}`);
 
   try {
-    // Add timeout to prevent hanging
+    // Add longer timeout for larger models (BGE Base/Large need more time)
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    const isLargerModel = model.includes('bge-base') || model.includes('bge-large');
+    const timeoutDuration = isLargerModel ? 60000 : 30000; // 60s for larger models, 30s for others
+    const timeout = setTimeout(() => controller.abort(), timeoutDuration);
 
     // Only include Authorization header if API key is provided
     const headers: HeadersInit = {
@@ -115,7 +117,10 @@ export async function getSentenceEmbeddings(
 
     // Provide more specific error messages
     if (error.name === 'AbortError') {
-      throw new Error('Request timed out after 30 seconds. The Hugging Face API may be down or overloaded.');
+      const timeoutMsg = isLargerModel
+        ? 'Request timed out after 60 seconds. BGE Base/Large models need more time - try BGE Small or try again later.'
+        : 'Request timed out after 30 seconds. The Hugging Face API may be down or overloaded.';
+      throw new Error(timeoutMsg);
     } else if (error.message?.includes('fetch')) {
       throw new Error('Network error: Unable to connect to Hugging Face API. Check your internet connection.');
     }
@@ -153,8 +158,9 @@ export async function processYouTubeTitles(
   try {
     console.log(`Getting embeddings for ${titles.length} titles using ${model}...`);
 
-    // Batch process if needed (API might have limits)
-    const batchSize = 100;
+    // Batch process if needed (API might have limits) - smaller batches for larger models
+    const isLargerModel = model.includes('bge-base') || model.includes('bge-large');
+    const batchSize = isLargerModel ? 50 : 100; // Smaller batches for larger models
     const allEmbeddings: number[][] = [];
 
     for (let i = 0; i < titles.length; i += batchSize) {
@@ -166,9 +172,10 @@ export async function processYouTubeTitles(
       );
       allEmbeddings.push(...batchEmbeddings);
 
-      // Small delay to respect rate limits
+      // Small delay to respect rate limits - longer for larger models
       if (i + batchSize < titles.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        const delay = isLargerModel ? 500 : 100; // 500ms for larger models
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
 
@@ -207,8 +214,9 @@ export async function processYouTubeTitlesWithProgress(
   try {
     console.log(`Getting embeddings for ${titles.length} titles using ${model}...`);
 
-    // Batch process if needed (API might have limits)
-    const batchSize = 100;
+    // Batch process if needed (API might have limits) - smaller batches for larger models
+    const isLargerModel = model.includes('bge-base') || model.includes('bge-large');
+    const batchSize = isLargerModel ? 50 : 100; // Smaller batches for larger models
     const totalBatches = Math.ceil(titles.length / batchSize);
     const allEmbeddings: number[][] = [];
 
@@ -242,9 +250,10 @@ export async function processYouTubeTitlesWithProgress(
         throw batchError;
       }
 
-      // Small delay to respect rate limits
+      // Small delay to respect rate limits - longer for larger models
       if (i + batchSize < titles.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        const delay = isLargerModel ? 500 : 100; // 500ms for larger models
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
 

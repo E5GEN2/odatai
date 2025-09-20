@@ -60,6 +60,15 @@ export default function Home() {
   const [loadingThumbnails, setLoadingThumbnails] = useState(false);
   const [thumbnailProgress, setThumbnailProgress] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [similarVideos, setSimilarVideos] = useState<{
+    query: VideoData;
+    results: Array<{
+      video: VideoData;
+      similarity: number;
+      clusterId: number;
+    }>;
+  } | null>(null);
+  const [showSimilarityModal, setShowSimilarityModal] = useState(false);
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -75,6 +84,84 @@ export default function Home() {
       }
     }
     return null;
+  };
+
+  // Cosine similarity calculation
+  const cosineSimilarity = (a: number[], b: number[]): number => {
+    if (a.length !== b.length) return 0;
+
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+    return denominator === 0 ? 0 : dotProduct / denominator;
+  };
+
+  // Find similar videos using embeddings
+  const findSimilarVideos = (targetVideo: VideoData) => {
+    if (!clusteringResults || !processedTexts) {
+      console.warn('No clustering results available for similarity search');
+      return;
+    }
+
+    // Find the target video's embedding
+    const targetIndex = videos.findIndex(v => v.title === targetVideo.title);
+    if (targetIndex === -1) {
+      console.warn('Target video not found in processed texts');
+      return;
+    }
+
+    const targetEmbedding = processedTexts[targetIndex]?.vector;
+    if (!targetEmbedding) {
+      console.warn('No embedding found for target video');
+      return;
+    }
+
+    // Calculate similarity with all other videos
+    const similarities: Array<{
+      video: VideoData;
+      similarity: number;
+      clusterId: number;
+    }> = [];
+
+    processedTexts.forEach((processed, index) => {
+      if (index !== targetIndex && processed.vector) {
+        const similarity = cosineSimilarity(targetEmbedding, processed.vector);
+        const video = videos[index];
+
+        // Find which cluster this video belongs to
+        let clusterId = -1;
+        clusteringResults.clusters.forEach((cluster, cId) => {
+          if (cluster.some((item: any) => item.title === video.title)) {
+            clusterId = cId;
+          }
+        });
+
+        similarities.push({
+          video,
+          similarity,
+          clusterId
+        });
+      }
+    });
+
+    // Sort by similarity (highest first) and take top 20
+    const topSimilar = similarities
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 20);
+
+    setSimilarVideos({
+      query: targetVideo,
+      results: topSimilar
+    });
+    setShowSimilarityModal(true);
   };
 
   const formatDuration = (duration: string): string => {
@@ -701,6 +788,13 @@ https://www.youtube.com/shorts/abc123"
                           >
                             {copiedIndex === index ? '✓' : '📋'}
                           </button>
+                          <button
+                            onClick={() => findSimilarVideos(video)}
+                            className="inline-flex items-center px-3 py-2 bg-purple-800/50 text-white text-xs font-semibold rounded-xl hover:bg-purple-700/50 transition-all duration-300 border border-purple-700"
+                            title="Find similar videos using AI embeddings"
+                          >
+                            🔍 Similar
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -926,6 +1020,13 @@ https://www.youtube.com/shorts/abc123"
                           >
                             {copiedIndex === index ? '✓' : '📋'}
                           </button>
+                          <button
+                            onClick={() => findSimilarVideos(video)}
+                            className="inline-flex items-center px-3 py-2 bg-purple-800/50 text-white text-xs font-semibold rounded-xl hover:bg-purple-700/50 transition-all duration-300 border border-purple-700"
+                            title="Find similar videos using AI embeddings"
+                          >
+                            🔍 Similar
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1002,6 +1103,16 @@ https://www.youtube.com/shorts/abc123"
                               className="inline-flex items-center px-2 py-1 bg-gray-800/50 text-white text-xs rounded hover:bg-gray-700/50 transition-colors"
                             >
                               {copiedIndex === index ? '✓ Copied' : '📋 Copy'}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                findSimilarVideos(video);
+                              }}
+                              className="inline-flex items-center px-2 py-1 bg-purple-800/50 text-white text-xs rounded hover:bg-purple-700/50 transition-colors"
+                              title="Find similar videos using AI embeddings"
+                            >
+                              🔍 Similar
                             </button>
                           </div>
                         </div>
@@ -1789,6 +1900,94 @@ https://www.youtube.com/shorts/abc123"
           animation: shake 0.5s ease-in-out;
         }
       `}</style>
+
+      {/* Similarity Results Modal */}
+      {showSimilarityModal && similarVideos && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 rounded-2xl border border-gray-800 max-w-4xl w-full max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-800 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  🔍 Similar Videos
+                </h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  Most similar to: <span className="text-white font-medium">"{similarVideos.query.title}"</span>
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowSimilarityModal(false);
+                  setSimilarVideos(null);
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Results List */}
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <div className="space-y-4">
+                {similarVideos.results.map((result, index) => (
+                  <div
+                    key={result.video.id}
+                    className="flex items-center gap-4 p-4 bg-gray-800/30 rounded-xl border border-gray-800/50 hover:bg-gray-800/50 transition-colors"
+                  >
+                    {/* Rank & Similarity Score */}
+                    <div className="flex flex-col items-center min-w-0">
+                      <div className="text-lg font-bold text-blue-400">#{index + 1}</div>
+                      <div className="text-xs text-gray-400">
+                        {(result.similarity * 100).toFixed(1)}%
+                      </div>
+                    </div>
+
+                    {/* Video Info */}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium text-white leading-5 overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                        {result.video.title}
+                      </h4>
+                      <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                        <span>{result.video.channel}</span>
+                        <span>{result.video.duration}</span>
+                        <span className="bg-purple-900/50 text-purple-300 px-2 py-1 rounded">
+                          Cluster {result.clusterId + 1}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={result.video.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors"
+                      >
+                        Watch
+                      </a>
+                      <button
+                        onClick={() => findSimilarVideos(result.video)}
+                        className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-lg transition-colors"
+                        title="Find videos similar to this one"
+                      >
+                        🔍 More Like This
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-gray-800 bg-gray-900/50">
+              <p className="text-xs text-gray-400 text-center">
+                Similarity calculated using AI embeddings • Higher percentages = more similar content
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
