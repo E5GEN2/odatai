@@ -107,23 +107,35 @@ export default function Home() {
 
   // Find similar videos using embeddings
   const findSimilarVideos = (targetVideo: VideoData) => {
+    console.log('findSimilarVideos called with:', targetVideo.title);
+    console.log('clusteringResults:', !!clusteringResults);
+    console.log('processedTexts:', processedTexts?.length);
+
     if (!clusteringResults || !processedTexts) {
       console.warn('No clustering results available for similarity search');
       return;
     }
 
-    // Find the target video's embedding
-    const targetIndex = videos.findIndex(v => v.title === targetVideo.title);
-    if (targetIndex === -1) {
-      console.warn('Target video not found in processed texts');
+    // Find the target video's embedding by matching the title in processedTexts
+    // Note: processedTexts only contains English videos that were actually clustered
+    let targetEmbedding = null;
+    let targetProcessedIndex = -1;
+
+    for (let i = 0; i < processedTexts.length; i++) {
+      if (processedTexts[i].original === targetVideo.title) {
+        targetEmbedding = processedTexts[i].vector;
+        targetProcessedIndex = i;
+        break;
+      }
+    }
+
+    if (!targetEmbedding) {
+      console.warn('No embedding found for target video. This video may not have been included in clustering (possibly filtered out as non-English)');
+      alert('This video was not included in the clustering analysis (possibly filtered out as non-English content). Similarity search is only available for videos that were actually clustered.');
       return;
     }
 
-    const targetEmbedding = processedTexts[targetIndex]?.vector;
-    if (!targetEmbedding) {
-      console.warn('No embedding found for target video');
-      return;
-    }
+    console.log('Found target embedding at index:', targetProcessedIndex);
 
     // Calculate similarity with all other videos
     const similarities: Array<{
@@ -133,9 +145,12 @@ export default function Home() {
     }> = [];
 
     processedTexts.forEach((processed, index) => {
-      if (index !== targetIndex && processed.vector) {
+      if (index !== targetProcessedIndex && processed.vector) {
         const similarity = cosineSimilarity(targetEmbedding, processed.vector);
-        const video = videos[index];
+
+        // Find the video in the original videos array by title
+        const video = videos.find(v => v.title === processed.original);
+        if (!video) return; // Skip if video not found
 
         // Find which cluster this video belongs to
         let clusterId = -1;
