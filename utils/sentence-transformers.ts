@@ -48,7 +48,8 @@ export async function getSentenceEmbeddings(
 
   try {
     const controller = new AbortController();
-    const timeoutDuration = isLargerModel ? 60000 : 30000; // 60s for larger models, 30s for others
+    // Keep reasonable timeouts for better user feedback
+    const timeoutDuration = isLargerModel ? 90000 : 45000; // 90s for larger models, 45s for others
     const timeout = setTimeout(() => controller.abort(), timeoutDuration);
 
     // Only include Authorization header if API key is provided
@@ -119,8 +120,8 @@ export async function getSentenceEmbeddings(
     // Provide more specific error messages
     if (error.name === 'AbortError') {
       const timeoutMsg = isLargerModel
-        ? 'Request timed out after 60 seconds. BGE Base/Large models need more time - try BGE Small or try again later.'
-        : 'Request timed out after 30 seconds. The Hugging Face API may be down or overloaded.';
+        ? `Request timed out after ${timeoutDuration/1000} seconds. BGE Base/Large models are slower for large datasets. Try BGE Small for faster processing.`
+        : `Request timed out after ${timeoutDuration/1000} seconds. The Hugging Face API may be down or overloaded.`;
       throw new Error(timeoutMsg);
     } else if (error.message?.includes('fetch')) {
       throw new Error('Network error: Unable to connect to Hugging Face API. Check your internet connection.');
@@ -159,9 +160,21 @@ export async function processYouTubeTitles(
   try {
     console.log(`Getting embeddings for ${titles.length} titles using ${model}...`);
 
-    // Batch process if needed (API might have limits) - smaller batches for larger models
+    // Batch process if needed (API might have limits) - much smaller batches for reliability
     const isLargerModel = model.includes('bge-base') || model.includes('bge-large');
-    const batchSize = isLargerModel ? 50 : 100; // Smaller batches for larger models
+
+    // Use smaller batches for large datasets and larger models to prevent timeouts
+    let batchSize;
+    if (titles.length > 500) {
+      // For large datasets (500+ videos), use very small batches
+      batchSize = isLargerModel ? 15 : 25;
+    } else if (titles.length > 200) {
+      // For medium datasets (200-500 videos), use small batches
+      batchSize = isLargerModel ? 25 : 40;
+    } else {
+      // For small datasets (<200 videos), use normal batches
+      batchSize = isLargerModel ? 40 : 60;
+    }
     const allEmbeddings: number[][] = [];
 
     for (let i = 0; i < titles.length; i += batchSize) {
@@ -173,9 +186,19 @@ export async function processYouTubeTitles(
       );
       allEmbeddings.push(...batchEmbeddings);
 
-      // Small delay to respect rate limits - longer for larger models
+      // Small delay to respect rate limits - longer for larger models and datasets
       if (i + batchSize < titles.length) {
-        const delay = isLargerModel ? 500 : 100; // 500ms for larger models
+        let delay;
+        if (titles.length > 500) {
+          // For large datasets, use longer delays
+          delay = isLargerModel ? 1000 : 700; // 1s for larger models, 700ms for smaller
+        } else if (titles.length > 200) {
+          // For medium datasets, moderate delays
+          delay = isLargerModel ? 700 : 400; // 700ms for larger models, 400ms for smaller
+        } else {
+          // For small datasets, minimal delays
+          delay = isLargerModel ? 300 : 100; // 300ms for larger models, 100ms for smaller
+        }
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -215,9 +238,21 @@ export async function processYouTubeTitlesWithProgress(
   try {
     console.log(`Getting embeddings for ${titles.length} titles using ${model}...`);
 
-    // Batch process if needed (API might have limits) - smaller batches for larger models
+    // Batch process if needed (API might have limits) - much smaller batches for reliability
     const isLargerModel = model.includes('bge-base') || model.includes('bge-large');
-    const batchSize = isLargerModel ? 50 : 100; // Smaller batches for larger models
+
+    // Use smaller batches for large datasets and larger models to prevent timeouts
+    let batchSize;
+    if (titles.length > 500) {
+      // For large datasets (500+ videos), use very small batches
+      batchSize = isLargerModel ? 15 : 25;
+    } else if (titles.length > 200) {
+      // For medium datasets (200-500 videos), use small batches
+      batchSize = isLargerModel ? 25 : 40;
+    } else {
+      // For small datasets (<200 videos), use normal batches
+      batchSize = isLargerModel ? 40 : 60;
+    }
     const totalBatches = Math.ceil(titles.length / batchSize);
     const allEmbeddings: number[][] = [];
 
@@ -251,9 +286,19 @@ export async function processYouTubeTitlesWithProgress(
         throw batchError;
       }
 
-      // Small delay to respect rate limits - longer for larger models
+      // Small delay to respect rate limits - longer for larger models and datasets
       if (i + batchSize < titles.length) {
-        const delay = isLargerModel ? 500 : 100; // 500ms for larger models
+        let delay;
+        if (titles.length > 500) {
+          // For large datasets, use longer delays
+          delay = isLargerModel ? 1000 : 700; // 1s for larger models, 700ms for smaller
+        } else if (titles.length > 200) {
+          // For medium datasets, moderate delays
+          delay = isLargerModel ? 700 : 400; // 700ms for larger models, 400ms for smaller
+        } else {
+          // For small datasets, minimal delays
+          delay = isLargerModel ? 300 : 100; // 300ms for larger models, 100ms for smaller
+        }
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
