@@ -81,6 +81,18 @@ export default function Home() {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'connected' | 'error'>('idle');
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [saveProgress, setSaveProgress] = useState<{
+    isActive: boolean;
+    message: string;
+    current: number;
+    total: number;
+    error?: string;
+  }>({
+    isActive: false,
+    message: '',
+    current: 0,
+    total: 0
+  });
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -592,7 +604,7 @@ export default function Home() {
     }
   };
 
-  // Load API keys from localStorage on mount
+  // Load API keys and ClickHouse config from localStorage on mount
   useEffect(() => {
     const savedYouTubeKey = localStorage.getItem('youtube_api_key');
     if (savedYouTubeKey) {
@@ -603,7 +615,24 @@ export default function Home() {
     if (savedHuggingFaceKey) {
       setHuggingFaceApiKey(savedHuggingFaceKey);
     }
+
+    const savedClickHouseConfig = localStorage.getItem('clickhouse_config');
+    if (savedClickHouseConfig) {
+      try {
+        const config = JSON.parse(savedClickHouseConfig);
+        setClickhouseConfig(config);
+      } catch (e) {
+        console.error('Failed to parse saved ClickHouse config:', e);
+      }
+    }
   }, []);
+
+  // Save ClickHouse config to localStorage when it changes
+  useEffect(() => {
+    if (clickhouseConfig.host || clickhouseConfig.password) {
+      localStorage.setItem('clickhouse_config', JSON.stringify(clickhouseConfig));
+    }
+  }, [clickhouseConfig]);
 
   // Import URLs from ClickHouse database
   const importUrlsFromDatabase = async () => {
@@ -710,29 +739,96 @@ export default function Home() {
       return;
     }
 
+    // Initialize progress
+    setSaveProgress({
+      isActive: true,
+      message: 'Preparing to save videos...',
+      current: 0,
+      total: videos.length,
+      error: undefined
+    });
+
     try {
-      const response = await fetch('/api/clickhouse', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'save_videos',
-          config: clickhouseConfig,
-          data: { videos }
-        }),
-      });
+      // Show progress for table creation
+      setSaveProgress(prev => ({
+        ...prev,
+        message: 'Ensuring database tables exist...',
+        current: 10
+      }));
 
-      const result = await response.json();
+      // Batch videos if there are many
+      const batchSize = 100;
+      let savedCount = 0;
 
-      if (result.success) {
-        alert(`Successfully saved ${videos.length} videos to database.`);
-      } else {
-        alert(`Failed to save videos: ${result.error}`);
+      for (let i = 0; i < videos.length; i += batchSize) {
+        const batch = videos.slice(i, Math.min(i + batchSize, videos.length));
+
+        setSaveProgress(prev => ({
+          ...prev,
+          message: `Saving batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(videos.length / batchSize)}...`,
+          current: i + batch.length
+        }));
+
+        const response = await fetch('/api/clickhouse', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'save_videos',
+            config: clickhouseConfig,
+            data: { videos: batch }
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error || 'Save failed');
+        }
+
+        savedCount += batch.length;
+
+        // Small delay between batches to avoid overwhelming the database
+        if (i + batchSize < videos.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
       }
+
+      // Success
+      setSaveProgress(prev => ({
+        ...prev,
+        message: `✅ Successfully saved ${savedCount} videos to database!`,
+        current: savedCount
+      }));
+
+      // Close modal after 2 seconds
+      setTimeout(() => {
+        setSaveProgress({
+          isActive: false,
+          message: '',
+          current: 0,
+          total: 0
+        });
+      }, 2000);
+
     } catch (error: any) {
       console.error('Save failed:', error);
-      alert(`Save failed: ${error.message}`);
+      setSaveProgress(prev => ({
+        ...prev,
+        error: error.message || 'Save failed',
+        message: `❌ Error: ${error.message || 'Save failed'}`
+      }));
+
+      // Close modal after 3 seconds on error
+      setTimeout(() => {
+        setSaveProgress({
+          isActive: false,
+          message: '',
+          current: 0,
+          total: 0
+        });
+      }, 3000);
     }
   };
 
@@ -2414,6 +2510,62 @@ https://www.youtube.com/shorts/abc123"
               <p className="text-xs text-gray-400 text-center">
                 Similarity calculated using AI embeddings • Higher percentages = more similar content
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Progress Modal */}
+      {saveProgress.isActive && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 rounded-2xl border border-gray-800 max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <span>💾</span>
+              Saving to Database
+            </h3>
+
+            <div className="space-y-4">
+              {/* Progress message */}
+              <p className="text-gray-300 text-sm">
+                {saveProgress.message}
+              </p>
+
+              {/* Progress bar */}
+              <div className="w-full bg-gray-800 rounded-full h-3">
+                <div
+                  className={`h-3 rounded-full transition-all duration-500 ${
+                    saveProgress.error ? 'bg-red-600' : 'bg-emerald-600'
+                  }`}
+                  style={{
+                    width: `${
+                      saveProgress.total > 0
+                        ? (saveProgress.current / saveProgress.total) * 100
+                        : 0
+                    }%`
+                  }}
+                />
+              </div>
+
+              {/* Progress stats */}
+              {saveProgress.total > 0 && !saveProgress.error && (
+                <div className="text-center text-sm text-gray-400">
+                  {saveProgress.current} / {saveProgress.total} videos processed
+                </div>
+              )}
+
+              {/* Error display */}
+              {saveProgress.error && (
+                <div className="bg-red-600/10 border border-red-600/30 rounded-lg p-3">
+                  <p className="text-red-400 text-sm">{saveProgress.error}</p>
+                </div>
+              )}
+
+              {/* Success animation */}
+              {saveProgress.message.includes('✅') && (
+                <div className="text-center">
+                  <div className="inline-block animate-bounce text-4xl">✅</div>
+                </div>
+              )}
             </div>
           </div>
         </div>
