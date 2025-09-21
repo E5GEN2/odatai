@@ -53,6 +53,12 @@ export async function POST(request: NextRequest) {
       case 'get_videos_with_embeddings':
         return await getVideosWithEmbeddings(host, headers, database, data?.limit || 1000);
 
+      case 'debug_embeddings':
+        return await debugEmbeddings(host, headers, database);
+
+      case 'get_all_videos':
+        return await getAllVideos(host, headers, database, data?.limit || 100, data?.offset || 0, data?.search || '', data?.sort || 'added_at', data?.sortDirection || 'desc');
+
       default:
         return Response.json({
           success: false,
@@ -761,6 +767,206 @@ async function getVideosWithEmbeddings(host: string, headers: any, database: str
 
   } catch (error: any) {
     console.error('getVideosWithEmbeddings error:', error);
+    return Response.json({
+      success: false,
+      error: `Fetch failed: ${error.message}`
+    });
+  }
+}
+
+// Debug embeddings in database
+async function debugEmbeddings(host: string, headers: any, database: string) {
+  try {
+    console.log(`Debugging embeddings in database: ${database}`);
+
+    // Query to get embedding statistics
+    const debugQuery = `
+      SELECT
+        id,
+        title,
+        embedding_model,
+        embedding_dimensions,
+        length(embedding) as actual_array_length,
+        embedding_generated_at
+      FROM ${database}.videos
+      WHERE length(embedding) > 0
+      ORDER BY embedding_generated_at DESC
+      LIMIT 10
+      FORMAT JSONEachRow
+    `;
+
+    const response = await fetch(host, {
+      method: 'POST',
+      headers,
+      body: debugQuery,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Debug query failed:', errorText);
+      return Response.json({
+        success: false,
+        error: `Failed to debug embeddings: ${errorText}`
+      });
+    }
+
+    const resultText = await response.text();
+    console.log('Raw debug response from ClickHouse:', resultText);
+
+    const debugResults = resultText
+      .trim()
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => {
+        try {
+          return JSON.parse(line);
+        } catch (e) {
+          console.error('Failed to parse debug line:', line, e);
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    console.log(`Debug results: ${debugResults.length} videos found`);
+
+    return Response.json({
+      success: true,
+      debug_results: debugResults,
+      message: `Found ${debugResults.length} videos with embeddings`
+    });
+
+  } catch (error: any) {
+    console.error('debugEmbeddings error:', error);
+    return Response.json({
+      success: false,
+      error: `Debug failed: ${error.message}`
+    });
+  }
+}
+
+// Get all videos from database with pagination, search and sorting
+async function getAllVideos(host: string, headers: any, database: string, limit: number, offset: number, search: string, sort: string, sortDirection: string) {
+  try {
+    console.log(`Getting all videos from database: ${database}, limit: ${limit}, offset: ${offset}, search: "${search}", sort: ${sort} ${sortDirection}`);
+
+    // Build WHERE clause for search
+    let whereClause = '';
+    if (search && search.trim()) {
+      const searchTerm = search.trim().replace(/'/g, "''");
+      whereClause = `WHERE (title ILIKE '%${searchTerm}%' OR channel_title ILIKE '%${searchTerm}%' OR description ILIKE '%${searchTerm}%')`;
+    }
+
+    // Build ORDER BY clause
+    const validSortFields = ['added_at', 'title', 'view_count', 'like_count', 'duration', 'channel_title', 'embedding_dimensions'];
+    const sortField = validSortFields.includes(sort) ? sort : 'added_at';
+    const sortDir = sortDirection === 'asc' ? 'ASC' : 'DESC';
+
+    // First get total count
+    const countQuery = `SELECT count() as total FROM ${database}.videos ${whereClause}`;
+
+    const countResponse = await fetch(host, {
+      method: 'POST',
+      headers,
+      body: countQuery,
+    });
+
+    if (!countResponse.ok) {
+      const errorText = await countResponse.text();
+      console.error('Count query failed:', errorText);
+      return Response.json({
+        success: false,
+        error: `Failed to get video count: ${errorText}`
+      });
+    }
+
+    const countText = await countResponse.text();
+    const totalVideos = parseInt(countText.trim()) || 0;
+
+    // Get the videos with all relevant information
+    const query = `
+      SELECT
+        id,
+        url,
+        title,
+        thumbnail,
+        duration,
+        view_count,
+        like_count,
+        comment_count,
+        published_at,
+        channel_id,
+        channel_title,
+        description,
+        tags,
+        category_id,
+        length(embedding) as embedding_length,
+        embedding_model,
+        embedding_dimensions,
+        embedding_generated_at,
+        processed_for_clustering,
+        language_detected,
+        language_confidence,
+        added_at,
+        updated_at
+      FROM ${database}.videos
+      ${whereClause}
+      ORDER BY ${sortField} ${sortDir}
+      LIMIT ${limit} OFFSET ${offset}
+      FORMAT JSONEachRow
+    `;
+
+    const response = await fetch(host, {
+      method: 'POST',
+      headers,
+      body: query,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Videos query failed:', errorText);
+      return Response.json({
+        success: false,
+        error: `Failed to fetch videos: ${errorText}`
+      });
+    }
+
+    const resultText = await response.text();
+    console.log('Raw response from ClickHouse:', resultText.substring(0, 200) + '...');
+
+    // Parse JSONEachRow format
+    const videos = resultText
+      .trim()
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => {
+        try {
+          const video = JSON.parse(line);
+          // Add computed fields
+          video.has_embedding = video.embedding_length > 0;
+          video.embedding_status = video.embedding_length > 0
+            ? `${video.embedding_dimensions || video.embedding_length}D (${video.embedding_model || 'Unknown'})`
+            : 'No embedding';
+          return video;
+        } catch (e) {
+          console.error('Failed to parse video line:', line, e);
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    console.log(`Successfully retrieved ${videos.length} videos out of ${totalVideos} total`);
+
+    return Response.json({
+      success: true,
+      videos,
+      total: totalVideos,
+      offset,
+      limit,
+      hasMore: offset + videos.length < totalVideos
+    });
+
+  } catch (error: any) {
+    console.error('getAllVideos error:', error);
     return Response.json({
       success: false,
       error: `Fetch failed: ${error.message}`

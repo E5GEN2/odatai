@@ -14,7 +14,11 @@ export async function getGoogleEmbeddings(
   config: GoogleEmbeddingConfig,
   retryCount: number = 0
 ): Promise<number[][]> {
-  const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents';
+  // Use the correct model based on desired dimensions
+  const modelName = config.dimensions === 3072 ? 'gemini-embedding-001' : 'text-embedding-004';
+  const API_URL = config.dimensions === 3072
+    ? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents'
+    : 'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents';
   const maxRetries = 3;
 
   console.log(`Calling Google Gemini API: ${texts.length} texts, dimensions: ${config.dimensions || 768}`);
@@ -25,12 +29,13 @@ export async function getGoogleEmbeddings(
 
     const requestBody = {
       requests: texts.map(text => ({
-        model: config.model && config.model.startsWith('models/') ? config.model : `models/${config.model || 'text-embedding-004'}`,
+        model: config.model && config.model.startsWith('models/') ? config.model : `models/${modelName}`,
         content: {
           parts: [{ text }]
         },
-        taskType: config.taskType || 'SEMANTIC_SIMILARITY',
-        // outputDimensionality: omit this to get full 3072 dimensions!
+        taskType: config.taskType || 'SEMANTIC_SIMILARITY'
+        // Note: outputDimensionality is omitted to get full dimensional embeddings
+        // Text-embedding-004 should return 3072 dimensions by default
       }))
     };
 

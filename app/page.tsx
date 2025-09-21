@@ -15,7 +15,7 @@ interface VideoData {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'database' | 'data-mining' | 'analyze'>('database');
+  const [activeTab, setActiveTab] = useState<'database' | 'data-mining' | 'analyze' | 'explorer'>('database');
   const [inputText, setInputText] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [huggingFaceApiKey, setHuggingFaceApiKey] = useState('');
@@ -95,6 +95,13 @@ export default function Home() {
     current: 0,
     total: 0
   });
+
+  // Explorer tab state
+  const [explorerData, setExplorerData] = useState<any[]>([]);
+  const [explorerLoading, setExplorerLoading] = useState(false);
+  const [explorerError, setExplorerError] = useState('');
+  const [explorerFilter, setExplorerFilter] = useState('');
+  const [explorerSort, setExplorerSort] = useState<{field: string, direction: 'asc' | 'desc'}>({field: 'added_at', direction: 'desc'});
 
   // Load saved API keys from localStorage on component mount
   useEffect(() => {
@@ -526,9 +533,19 @@ export default function Home() {
         handleUnknown: clusteringConfig.handleUnknown
       };
 
-      // Check if we have pre-existing embeddings from database import
-      const hasPreExistingEmbeddings = processedTexts.length > 0 &&
-        processedTexts.every(item => item.vector && item.vector.length > 0);
+      // Check if we should use pre-existing embeddings (either explicitly selected or automatically detected)
+      const hasPreExistingEmbeddings =
+        (clusteringConfig.word2vecApproach === 'database') ||
+        (processedTexts.length > 0 && processedTexts.every(item => item.vector && item.vector.length > 0));
+
+      // Validate that database embeddings are available when database approach is selected
+      if (clusteringConfig.word2vecApproach === 'database') {
+        if (processedTexts.length === 0 || !processedTexts.every(item => item.vector && item.vector.length > 0)) {
+          setClusteringError('Database embeddings not available. Please import videos with embeddings first.');
+          setIsClusteringLoading(false);
+          return;
+        }
+      }
 
       console.log('Starting clustering with streaming progress:', {
         word2vecConfig,
@@ -1034,6 +1051,65 @@ export default function Home() {
       setConnectionError(error.message || 'Connection failed');
       setIsConnected(false);
     }
+  };
+
+  // Load explorer data from database
+  const loadExplorerData = async (offset: number = 0, search: string = '', sort: string = 'added_at', sortDirection: string = 'desc') => {
+    if (!isConnected) {
+      setExplorerError('Please connect to your ClickHouse database first in the Database tab.');
+      return;
+    }
+
+    setExplorerLoading(true);
+    setExplorerError('');
+
+    try {
+      const response = await fetch('/api/clickhouse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'get_all_videos',
+          config: clickhouseConfig,
+          data: {
+            limit: 50,
+            offset,
+            search,
+            sort,
+            sortDirection
+          }
+        }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        if (offset === 0) {
+          setExplorerData(result.videos);
+        } else {
+          setExplorerData(prev => [...prev, ...result.videos]);
+        }
+      } else {
+        setExplorerError(result.error || 'Failed to load data');
+      }
+    } catch (error: any) {
+      setExplorerError(error.message || 'Failed to load data');
+    } finally {
+      setExplorerLoading(false);
+    }
+  };
+
+  // Handle search in explorer
+  const handleExplorerSearch = (searchTerm: string) => {
+    setExplorerFilter(searchTerm);
+    loadExplorerData(0, searchTerm, explorerSort.field, explorerSort.direction);
+  };
+
+  // Handle sort in explorer
+  const handleExplorerSort = (field: string) => {
+    const newDirection = explorerSort.field === field && explorerSort.direction === 'desc' ? 'asc' : 'desc';
+    setExplorerSort({ field, direction: newDirection });
+    loadExplorerData(0, explorerFilter, field, newDirection);
   };
 
   const renderDatabaseTab = () => (
@@ -1846,6 +1922,268 @@ https://www.youtube.com/shorts/abc123"
     );
   };
 
+  const renderExplorerTab = () => {
+    return (
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-cyan-950/30 to-teal-950/30 border border-cyan-800/30 rounded-2xl p-6">
+          <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-3">
+            🔍 Database Explorer
+          </h2>
+          <p className="text-gray-400">
+            Explore all videos stored in your database with URLs, titles, thumbnails, embeddings and metadata.
+          </p>
+        </div>
+
+        {/* Connection Check */}
+        {!isConnected ? (
+          <div className="bg-yellow-950/30 border border-yellow-800/30 rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl">⚠️</span>
+              <h3 className="text-xl font-semibold text-yellow-400">Database Not Connected</h3>
+            </div>
+            <p className="text-gray-400 mb-4">
+              Please connect to your ClickHouse database first to explore the data.
+            </p>
+            <button
+              onClick={() => setActiveTab('database')}
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors"
+            >
+              Go to Database Tab
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Search and Controls */}
+            <div className="bg-black/30 rounded-xl p-6 border border-gray-800">
+              <div className="flex flex-col md:flex-row gap-4 mb-4">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search by title, URL, or channel..."
+                    value={explorerFilter}
+                    onChange={(e) => handleExplorerSearch(e.target.value)}
+                    className="w-full px-4 py-3 bg-black/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                </div>
+                <button
+                  onClick={() => loadExplorerData()}
+                  disabled={explorerLoading}
+                  className="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-600 text-white font-semibold rounded-lg transition-colors"
+                >
+                  {explorerLoading ? 'Loading...' : 'Refresh Data'}
+                </button>
+              </div>
+
+              {/* Load Initial Data Button */}
+              {explorerData.length === 0 && !explorerLoading && !explorerError && (
+                <div className="text-center">
+                  <button
+                    onClick={() => loadExplorerData()}
+                    className="px-8 py-4 bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-semibold rounded-xl hover:from-cyan-700 hover:to-teal-700 transition-all"
+                  >
+                    🔍 Load Database Data
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Error Display */}
+            {explorerError && (
+              <div className="bg-red-950/30 border border-red-800/30 rounded-xl p-4">
+                <p className="text-red-400 flex items-center gap-2">
+                  <span>⚠️</span>
+                  {explorerError}
+                </p>
+              </div>
+            )}
+
+            {/* Loading State */}
+            {explorerLoading && (
+              <div className="bg-black/30 rounded-xl p-8 border border-gray-800 text-center">
+                <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p className="text-gray-400">Loading database records...</p>
+              </div>
+            )}
+
+            {/* Data Table */}
+            {explorerData.length > 0 && (
+              <div className="bg-black/30 rounded-xl border border-gray-800 overflow-hidden">
+                <div className="p-4 bg-gray-900/50 border-b border-gray-700">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                    📊 Database Records ({explorerData.length} total)
+                  </h3>
+                </div>
+
+                {/* Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-900/70">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleExplorerSort('added_at')}
+                            className="flex items-center gap-1 hover:text-white transition-colors"
+                          >
+                            Added
+                            {explorerSort.field === 'added_at' && (
+                              <span>{explorerSort.direction === 'desc' ? '↓' : '↑'}</span>
+                            )}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          Video
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleExplorerSort('title')}
+                            className="flex items-center gap-1 hover:text-white transition-colors"
+                          >
+                            Title
+                            {explorerSort.field === 'title' && (
+                              <span>{explorerSort.direction === 'desc' ? '↓' : '↑'}</span>
+                            )}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          Channel
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider text-center">
+                          Embeddings
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleExplorerSort('views')}
+                            className="flex items-center gap-1 hover:text-white transition-colors"
+                          >
+                            Views
+                            {explorerSort.field === 'views' && (
+                              <span>{explorerSort.direction === 'desc' ? '↓' : '↑'}</span>
+                            )}
+                          </button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800">
+                      {explorerData.map((video, index) => (
+                        <tr key={video.video_id || index} className="hover:bg-gray-900/30 transition-colors">
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-400">
+                            {video.added_at ? new Date(video.added_at).toLocaleDateString() : 'N/A'}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              {video.thumbnail_url && (
+                                <img
+                                  src={video.thumbnail_url}
+                                  alt="Thumbnail"
+                                  className="w-16 h-12 object-cover rounded border border-gray-700"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              )}
+                              <a
+                                href={video.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-cyan-400 hover:text-cyan-300 text-sm underline transition-colors"
+                                title={video.url}
+                              >
+                                📺 Open
+                              </a>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-white max-w-xs">
+                            <div className="truncate" title={video.title}>
+                              {video.title || 'No title'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-300 max-w-xs">
+                            <div className="truncate" title={video.channel_name}>
+                              {video.channel_name || 'Unknown'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              {video.embedding ? (
+                                <>
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-900/50 text-green-400 border border-green-800/50">
+                                    ✅ Available
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {video.embedding_dimensions}D
+                                  </span>
+                                  {video.embedding_model && (
+                                    <span className="text-xs text-gray-600 truncate max-w-24" title={video.embedding_model}>
+                                      {video.embedding_model}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-900/50 text-red-400 border border-red-800/50">
+                                  ❌ Missing
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-400">
+                            {video.views ? video.views.toLocaleString() : 'N/A'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="p-4 bg-gray-900/50 border-t border-gray-700 flex justify-between items-center">
+                  <p className="text-sm text-gray-400">
+                    Showing {explorerData.length} records
+                  </p>
+                  <button
+                    onClick={() => {
+                      const currentOffset = explorerData.length;
+                      loadExplorerData(currentOffset, explorerFilter, explorerSort.field, explorerSort.direction);
+                    }}
+                    disabled={explorerLoading}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white text-sm rounded-lg transition-colors"
+                  >
+                    Load More
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {explorerData.length === 0 && !explorerLoading && !explorerError && (
+              <div className="bg-black/30 rounded-xl p-12 border border-gray-800 text-center">
+                <div className="text-6xl mb-4">📊</div>
+                <h3 className="text-xl font-semibold text-white mb-2">No Data Found</h3>
+                <p className="text-gray-400 mb-6">
+                  Your database appears to be empty or the connection failed.
+                </p>
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={() => setActiveTab('data-mining')}
+                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-colors"
+                  >
+                    🔍 Import Videos
+                  </button>
+                  <button
+                    onClick={() => loadExplorerData()}
+                    className="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold rounded-xl transition-colors"
+                  >
+                    🔄 Retry Loading
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
   const renderAnalyzeTab = () => {
     // Show cluster detail view if a cluster is selected
     if (selectedCluster) {
@@ -2087,13 +2425,21 @@ https://www.youtube.com/shorts/abc123"
                   ...prev,
                   word2vecApproach: approach,
                   // Update dimensions based on approach
-                  dimensions: approach === 'google-gemini' ? 3072 : prev.dimensions
+                  dimensions: approach === 'google-gemini' ? 768 :
+                           approach === 'google-gemini-3072' ? 3072 :
+                           approach === 'database' ? (processedTexts[0]?.vector?.length || 384) :
+                           prev.dimensions
                 }));
               }}
               className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
             >
+              {/* Show database option if embeddings exist */}
+              {processedTexts.length > 0 && processedTexts.every(item => item.vector && item.vector.length > 0) && (
+                <option value="database">💾 Use Pre-existing Database Embeddings ({processedTexts[0]?.vector?.length || 0}D)</option>
+              )}
               <option value="sentence-transformers">🚀 Sentence Transformers (Best Quality)</option>
-              <option value="google-gemini">✨ Google Gemini Embeddings (3072D - Highest Quality)</option>
+              <option value="google-gemini">✨ Google Gemini text-embedding-004 (768D - High Quality)</option>
+              <option value="google-gemini-3072">🚀 Google Gemini embedding-001 (3072D - Highest Quality)</option>
               <option value="pretrained">Pre-trained Word2Vec (Fast)</option>
               <option value="custom">Train on YouTube Data (Not Implemented)</option>
               <option value="hybrid">Hybrid Approach (Not Implemented)</option>
@@ -2106,10 +2452,30 @@ https://www.youtube.com/shorts/abc123"
           <h5 className="text-md font-semibold text-white mb-3 flex items-center gap-2">
             <span>🧠</span>
             {clusteringConfig.word2vecApproach === 'sentence-transformers' ? 'Sentence Transformer' :
-             clusteringConfig.word2vecApproach === 'google-gemini' ? 'Google Gemini' : 'Word2Vec'} Configuration
+             clusteringConfig.word2vecApproach === 'google-gemini' ? 'Google Gemini (768D)' :
+             clusteringConfig.word2vecApproach === 'google-gemini-3072' ? 'Google Gemini (3072D)' :
+             clusteringConfig.word2vecApproach === 'database' ? 'Database Embeddings' : 'Word2Vec'} Configuration
           </h5>
 
-          {clusteringConfig.word2vecApproach === 'sentence-transformers' ? (
+          {clusteringConfig.word2vecApproach === 'database' ? (
+            <>
+              <div className="text-xs text-blue-400 p-3 bg-blue-950/30 rounded-lg mb-4 border border-blue-800/30">
+                <strong>💾 Using Pre-existing Database Embeddings:</strong> Clustering will use embeddings already stored in the database.
+                This is instant and preserves the exact same embeddings used in previous analyses.
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-300">
+                <div>
+                  <strong>Videos:</strong> {processedTexts.length}
+                </div>
+                <div>
+                  <strong>Dimensions:</strong> {processedTexts[0]?.vector?.length || 0}D
+                </div>
+                <div>
+                  <strong>Model:</strong> {processedTexts[0]?.model || 'Unknown'}
+                </div>
+              </div>
+            </>
+          ) : clusteringConfig.word2vecApproach === 'sentence-transformers' ? (
             <>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -2150,15 +2516,22 @@ https://www.youtube.com/shorts/abc123"
                 much better semantic understanding, handles phrases like "Apple stock" vs "Apple fruit" differently.
               </div>
             </>
-          ) : clusteringConfig.word2vecApproach === 'google-gemini' ? (
+          ) : clusteringConfig.word2vecApproach === 'google-gemini' || clusteringConfig.word2vecApproach === 'google-gemini-3072' ? (
             <>
               <div className="text-xs text-green-400 p-3 bg-green-950/30 rounded-lg mb-4 border border-green-800/30">
-                <strong>🚀 Google Gemini Embeddings:</strong> State-of-the-art 3072-dimensional embeddings from Google's Gemini model.
-                Provides the highest quality semantic understanding with superior clustering accuracy.
+                <strong>🚀 Google Gemini Embeddings:</strong> {
+                  clusteringConfig.word2vecApproach === 'google-gemini'
+                    ? 'Fast 768-dimensional embeddings from Google\'s text-embedding-004 model. Good quality with better speed.'
+                    : 'State-of-the-art 3072-dimensional embeddings from Google\'s embedding-001 model. Highest quality semantic understanding.'
+                }
               </div>
 
               <div className="text-sm text-gray-300 mb-3">
-                <strong>Model:</strong> text-embedding-004 (3072 dimensions)
+                <strong>Model:</strong> {
+                  clusteringConfig.word2vecApproach === 'google-gemini'
+                    ? 'text-embedding-004 (768 dimensions)'
+                    : 'gemini-embedding-001 (3072 dimensions)'
+                }
               </div>
             </>
           ) : (
@@ -2617,13 +2990,24 @@ https://www.youtube.com/shorts/abc123"
               >
                 📊 Analyze
               </button>
+              <button
+                onClick={() => setActiveTab('explorer')}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  activeTab === 'explorer'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                }`}
+              >
+                🔍 Explorer
+              </button>
             </div>
           </div>
 
           {/* Main Content */}
           <div className="backdrop-blur-xl bg-gray-900/50 rounded-3xl shadow-2xl border border-gray-800 p-8 animate-fade-in">
             {activeTab === 'database' ? renderDatabaseTab() :
-             activeTab === 'data-mining' ? renderDataMiningTab() : renderAnalyzeTab()}
+             activeTab === 'data-mining' ? renderDataMiningTab() :
+             activeTab === 'explorer' ? renderExplorerTab() : renderAnalyzeTab()}
           </div>
 
           {/* Footer */}
