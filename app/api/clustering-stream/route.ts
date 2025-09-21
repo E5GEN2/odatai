@@ -398,8 +398,12 @@ export async function POST(request: NextRequest) {
             sendProgress('post-processing', 'Extracting keywords and insights...', 95);
             await new Promise(resolve => setTimeout(resolve, 200));
 
-          } else if (word2vecConfig.approach === 'google-gemini') {
-            console.log(`[EMBEDDING] Using Google Gemini embeddings with 3072 dimensions`);
+          } else if (word2vecConfig.approach === 'google-gemini' || word2vecConfig.approach === 'google-gemini-3072') {
+            const isLargeModel = word2vecConfig.approach === 'google-gemini-3072';
+            const targetDimensions = isLargeModel ? 3072 : 768;
+            const modelName = isLargeModel ? 'models/gemini-embedding-001' : 'models/text-embedding-004';
+
+            console.log(`[EMBEDDING] Using Google Gemini embeddings with ${targetDimensions} dimensions (${modelName})`);
             sendProgress('embeddings', `Connecting to Google Gemini API for ${titlesToCluster.length} English videos...`, 15);
 
             let embeddings;
@@ -407,8 +411,8 @@ export async function POST(request: NextRequest) {
               // Use Google Gemini embeddings - much faster and higher quality than BGE Large!
               const embeddingResult = await processYouTubeTitlesWithGoogle(titlesToCluster, {
                 apiKey: googleApiKey,
-                model: 'models/text-embedding-004',
-                dimensions: 3072,
+                model: modelName,
+                dimensions: targetDimensions,
                 taskType: 'SEMANTIC_SIMILARITY'
               }, (batch: number, totalBatches: number, message: string) => {
                 const batchProgress = 20 + (batch / totalBatches) * 35; // 20% to 55%
@@ -421,19 +425,19 @@ export async function POST(request: NextRequest) {
                 throw new Error('No embeddings were generated');
               }
 
-              sendProgress('embeddings', `Successfully generated ${embeddings.length} Google embeddings with 3072 dimensions`, 56);
+              sendProgress('embeddings', `Successfully generated ${embeddings.length} Google embeddings with ${targetDimensions} dimensions`, 56);
             } catch (embeddingError: any) {
               console.error('Google embedding generation failed:', embeddingError);
               sendError(`Failed to generate Google embeddings: ${embeddingError.message || 'Unknown error'}. Please check your Google API key and try again.`);
               return;
             }
 
-            console.log(`[EMBEDDING] Got ${embeddings.length} Google embeddings (3072D), starting clustering`);
+            console.log(`[EMBEDDING] Got ${embeddings.length} Google embeddings (${targetDimensions}D), starting clustering`);
             sendProgress('embeddings', 'Validating Google embedding dimensions...', 57);
 
             const actualDim = embeddings[0].length;
-            if (actualDim !== 3072) {
-              console.warn(`Warning: Expected 3072 dimensions for Google Gemini, got ${actualDim}`);
+            if (actualDim !== targetDimensions) {
+              console.warn(`Warning: Expected ${targetDimensions} dimensions for Google Gemini, got ${actualDim}`);
             }
 
             sendProgress('embeddings', `Quality check: ${actualDim}D vectors from Google Gemini`, 60);
