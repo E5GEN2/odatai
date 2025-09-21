@@ -122,8 +122,8 @@ export async function processYouTubeTitlesWithGoogle(
   try {
     console.log(`Getting Google embeddings for ${titles.length} titles using ${model}...`);
 
-    // Use very small batches to respect rate limits - Google free tier is very restrictive
-    const batchSize = Math.min(10, titles.length);
+    // Google API supports larger batches - up to 100 requests per call
+    const batchSize = Math.min(50, titles.length);
     const totalBatches = Math.ceil(titles.length / batchSize);
     const allEmbeddings: number[][] = [];
 
@@ -152,9 +152,9 @@ export async function processYouTubeTitlesWithGoogle(
         throw batchError;
       }
 
-      // Longer delay to respect rate limits - especially important for free tier
+      // Small delay to respect rate limits
       if (i + batchSize < titles.length) {
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay between batches
+        await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay between batches
       }
     }
 
