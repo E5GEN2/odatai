@@ -679,6 +679,91 @@ export default function Home() {
     }
   };
 
+  // Import complete video records with embeddings from ClickHouse database
+  const importVideosFromDatabase = async () => {
+    if (!isConnected) {
+      alert('Please connect to your ClickHouse database first in the Database tab.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch('/api/clickhouse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'get_videos_with_embeddings',
+          config: clickhouseConfig,
+          data: { limit: 1000 }
+        }),
+      });
+
+      const result = await response.json();
+
+      console.log('Import videos result:', result);
+
+      if (result.success) {
+        if (result.videos && result.videos.length > 0) {
+          // Convert the database videos to our frontend format
+          const importedVideos = result.videos.map((dbVideo: any) => ({
+            id: dbVideo.id,
+            url: dbVideo.url,
+            title: dbVideo.title || 'No Title',
+            thumbnail: dbVideo.thumbnail || '',
+            duration: dbVideo.duration || 'Unknown',
+            viewCount: dbVideo.view_count || 0,
+            likeCount: dbVideo.like_count || 0,
+            commentCount: dbVideo.comment_count || 0,
+            publishedAt: dbVideo.published_at || '',
+            channelId: dbVideo.channel_id || '',
+            channelTitle: dbVideo.channel_title || 'Unknown Channel',
+            description: dbVideo.description || '',
+            tags: dbVideo.tags || [],
+            categoryId: dbVideo.category_id || '',
+            // Include embedding data for potential use
+            embedding: dbVideo.embedding || [],
+            embeddingModel: dbVideo.embedding_model || '',
+            embeddingDimensions: dbVideo.embedding_dimensions || 0,
+            processedForClustering: dbVideo.processed_for_clustering || false,
+            languageDetected: dbVideo.language_detected || '',
+            languageConfidence: dbVideo.language_confidence || 0
+          }));
+
+          // Set the videos state
+          setVideos(importedVideos);
+
+          // If we have embedding data, we can also set processed texts for clustering
+          const processedTextsData = importedVideos
+            .filter((video: any) => video.embedding.length > 0)
+            .map((video: any) => ({
+              original: video.title,
+              tokens: video.title.split(' '),
+              vector: video.embedding,
+              coverage: 100
+            }));
+
+          if (processedTextsData.length > 0) {
+            setProcessedTexts(processedTextsData);
+            console.log(`Imported ${processedTextsData.length} videos with embeddings ready for clustering`);
+          }
+
+          alert(`✅ Successfully imported ${importedVideos.length} videos from database.\n\n${processedTextsData.length} videos have embeddings ready for clustering.\n\nYou can now proceed with analysis or clustering.`);
+        } else {
+          alert(`📄 Database is empty - no videos found.\n\n${result.message || 'The videos table exists but contains no data.'}\n\nPlease add some videos first or check your database connection.`);
+        }
+      } else {
+        alert(`❌ Failed to import videos from database.\n\nError: ${result.error}\n\nPlease check your database connection and try again.`);
+      }
+    } catch (error: any) {
+      console.error('Import videos failed:', error);
+      alert(`Import videos failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Save analysis results and videos with embeddings to ClickHouse database
   const saveAnalysisResults = async () => {
     if (!isConnected) {
@@ -1204,6 +1289,13 @@ https://www.youtube.com/shorts/abc123"
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 text-white text-sm font-semibold rounded-lg transition-colors"
             >
               📥 Import URLs from DB
+            </button>
+            <button
+              onClick={importVideosFromDatabase}
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              🎬 Import Videos with Embeddings
             </button>
             {videos.length > 0 && (
               <button

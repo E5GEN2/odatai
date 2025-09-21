@@ -308,7 +308,7 @@ async function saveCompleteVideos(host: string, headers: any, database: string, 
       const channel_title = video.channel_title ? `'${video.channel_title.replace(/'/g, "''")}'` : 'NULL';
       const description = video.description ? `'${video.description.replace(/'/g, "''")}'` : 'NULL';
       const tags = video.tags && Array.isArray(video.tags)
-        ? `[${video.tags.map(tag => `'${tag.replace(/'/g, "''")}'`).join(',')}]`
+        ? `[${video.tags.map((tag: string) => `'${tag.replace(/'/g, "''")}'`).join(',')}]`
         : '[]';
       const category_id = video.category_id ? `'${video.category_id}'` : 'NULL';
 
@@ -400,7 +400,7 @@ async function saveVideos(host: string, headers: any, database: string, videos: 
       const channel_title = video.channel_title ? `'${video.channel_title.replace(/'/g, "''")}'` : 'NULL';
       const description = video.description ? `'${video.description.replace(/'/g, "''")}'` : 'NULL';
       const tags = video.tags && Array.isArray(video.tags)
-        ? `[${video.tags.map(tag => `'${tag.replace(/'/g, "''")}'`).join(',')}]`
+        ? `[${video.tags.map((tag: string) => `'${tag.replace(/'/g, "''")}'`).join(',')}]`
         : '[]';
       const category_id = video.category_id ? `'${video.category_id}'` : 'NULL';
 
