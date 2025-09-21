@@ -869,6 +869,12 @@ export default function Home() {
             onClick={testClickHouseConnection}
             disabled={connectionStatus === 'testing' || !clickhouseConfig.host || !clickhouseConfig.password}
             className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
+            title={
+              !clickhouseConfig.host ? 'Please enter host URL' :
+              !clickhouseConfig.password ? 'Please enter password' :
+              connectionStatus === 'testing' ? 'Testing in progress...' :
+              'Click to test connection'
+            }
           >
             {connectionStatus === 'testing' ? 'Testing Connection...' : 'Test Connection'}
           </button>
@@ -885,6 +891,14 @@ export default function Home() {
               Disconnect
             </button>
           )}
+        </div>
+
+        {/* Debug info - remove in production */}
+        <div className="mt-4 p-2 bg-black/60 rounded text-xs text-gray-500">
+          <p>Debug Info:</p>
+          <p>• Host filled: {clickhouseConfig.host ? '✓' : '✗'} ({clickhouseConfig.host.length} chars)</p>
+          <p>• Password filled: {clickhouseConfig.password ? '✓' : '✗'} ({clickhouseConfig.password.length} chars)</p>
+          <p>• Status: {connectionStatus}</p>
         </div>
 
         {/* Example curl command */}
