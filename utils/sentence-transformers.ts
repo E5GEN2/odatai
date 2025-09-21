@@ -45,11 +45,11 @@ export async function getSentenceEmbeddings(
 
   // Add longer timeout for larger models (BGE Base/Large need more time)
   const isLargerModel = model.includes('bge-base') || model.includes('bge-large');
+  // Keep reasonable timeouts for better user feedback
+  const timeoutDuration = isLargerModel ? 90000 : 45000; // 90s for larger models, 45s for others
 
   try {
     const controller = new AbortController();
-    // Keep reasonable timeouts for better user feedback
-    const timeoutDuration = isLargerModel ? 90000 : 45000; // 90s for larger models, 45s for others
     const timeout = setTimeout(() => controller.abort(), timeoutDuration);
 
     // Only include Authorization header if API key is provided
