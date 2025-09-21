@@ -64,6 +64,14 @@ export async function getGoogleEmbeddings(
 
       if (response.status === 429) {
         errorMessage = 'Google API rate limit exceeded. Please wait and try again';
+
+        // Retry logic for rate limits
+        if (retryCount < maxRetries) {
+          const delay = Math.pow(2, retryCount) * 3000; // Exponential backoff: 3s, 6s, 12s
+          console.log(`Rate limit hit, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return getGoogleEmbeddings(texts, config, retryCount + 1);
+        }
       } else if (response.status === 401 || response.status === 403) {
         errorMessage = 'Google API authentication failed. Check your API key';
       } else if (response.status === 400) {
@@ -114,8 +122,8 @@ export async function processYouTubeTitlesWithGoogle(
   try {
     console.log(`Getting Google embeddings for ${titles.length} titles using ${model}...`);
 
-    // Google API supports larger batches - up to 100 requests per call
-    const batchSize = Math.min(100, titles.length);
+    // Use very small batches to respect rate limits - Google free tier is very restrictive
+    const batchSize = Math.min(10, titles.length);
     const totalBatches = Math.ceil(titles.length / batchSize);
     const allEmbeddings: number[][] = [];
 
@@ -144,9 +152,9 @@ export async function processYouTubeTitlesWithGoogle(
         throw batchError;
       }
 
-      // Small delay to respect rate limits
+      // Longer delay to respect rate limits - especially important for free tier
       if (i + batchSize < titles.length) {
-        await new Promise(resolve => setTimeout(resolve, 200)); // Very short delay for Google
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay between batches
       }
     }
 
