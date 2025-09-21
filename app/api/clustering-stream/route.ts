@@ -34,14 +34,16 @@ export async function POST(request: NextRequest) {
       (async () => {
         try {
           const body = await request.json();
-          const { titles, word2vecConfig, clusteringConfig, huggingFaceApiKey, googleApiKey } = body;
+          const { titles, word2vecConfig, clusteringConfig, huggingFaceApiKey, googleApiKey, preExistingEmbeddings } = body;
 
           console.log(`[START] Clustering request received:`);
           console.log(`[START] - Titles: ${titles?.length || 0}`);
           console.log(`[START] - Word2Vec approach: ${word2vecConfig?.approach}`);
           console.log(`[START] - Word2Vec model: ${word2vecConfig?.model}`);
           console.log(`[START] - Clustering K: ${clusteringConfig?.k}`);
-          console.log(`[START] - Has API key: ${!!huggingFaceApiKey}`);
+          console.log(`[START] - Has HF API key: ${!!huggingFaceApiKey}`);
+          console.log(`[START] - Has Google API key: ${!!googleApiKey}`);
+          console.log(`[START] - Has pre-existing embeddings: ${!!preExistingEmbeddings}, count: ${preExistingEmbeddings?.length || 0}`);
 
           if (!titles || !Array.isArray(titles) || titles.length === 0) {
             sendError('Invalid titles array provided');
@@ -104,11 +106,119 @@ export async function POST(request: NextRequest) {
           // Use English-only titles for clustering
           const titlesToCluster = englishTitles;
 
-          // Check embedding approach
-          console.log(`[EMBEDDING] Approach: ${word2vecConfig.approach}, Titles to cluster: ${titlesToCluster.length}`);
-          if (word2vecConfig.approach === 'sentence-transformers') {
-            console.log(`[EMBEDDING] Using sentence transformers with model: ${word2vecConfig.model}`);
-            sendProgress('embeddings', `Loading sentence transformer model for ${titlesToCluster.length} English videos...`, 15);
+          // Check if we have pre-existing embeddings
+          if (preExistingEmbeddings && preExistingEmbeddings.length > 0) {
+            console.log(`[EMBEDDING] Using pre-existing embeddings: ${preExistingEmbeddings.length} embeddings`);
+            sendProgress('embeddings', `Using pre-existing embeddings from database (${preExistingEmbeddings.length} videos)...`, 15);
+
+            // Filter embeddings to match titlesToCluster (only English titles)
+            const filteredEmbeddings = preExistingEmbeddings.filter((embeddingData: any) =>
+              titlesToCluster.includes(embeddingData.original)
+            );
+
+            if (filteredEmbeddings.length === 0) {
+              sendError('No pre-existing embeddings match the English-only titles for clustering.');
+              return;
+            }
+
+            console.log(`[EMBEDDING] Filtered to ${filteredEmbeddings.length} embeddings matching English titles`);
+            sendProgress('embeddings', `Using ${filteredEmbeddings.length} pre-existing embeddings...`, 30);
+
+            // Extract embeddings and create processedTexts
+            const embeddings = filteredEmbeddings.map((item: any) => item.vector);
+            processedTexts = filteredEmbeddings.map((item: any) => ({
+              original: item.original,
+              tokens: item.tokens || item.original.split(' '),
+              vector: item.vector,
+              coverage: item.coverage || 100
+            }));
+
+            // Update titlesToCluster to match the order of embeddings
+            const reorderedTitles = filteredEmbeddings.map((item: any) => item.original);
+
+            sendProgress('embeddings', `Pre-existing embeddings ready: ${embeddings.length} vectors with ${embeddings[0]?.length || 0}D`, 60);
+
+            // Analyze optimal K if requested
+            let finalK = clusteringConfig.k;
+
+            if (clusteringConfig.k === -1) {
+              console.log(`[K-OPT] Starting K optimization for ${embeddings.length} pre-existing embeddings`);
+              sendProgress('k-optimization', 'Analyzing optimal K using Elbow Method...', 62);
+
+              const maxK = Math.max(10, Math.floor(embeddings.length * 0.1));
+              kOptimizationAnalysis = analyzeOptimalK(embeddings, maxK, (k, maxK, message) => {
+                const progress = 62 + ((k - 2) / (maxK - 2)) * 6;
+                sendProgress('k-optimization', message, Math.round(progress));
+              });
+              finalK = kOptimizationAnalysis.optimalK;
+
+              sendProgress('k-optimization', `Optimal K determined: ${finalK} clusters (tested K=2 to K=${maxK})`, 68);
+            }
+
+            sendProgress('clustering', `Initializing K-means with ${finalK} clusters on pre-existing embeddings...`, 70);
+
+            // Perform K-means directly on the pre-existing embeddings
+            const kmeansResult = kmeans(embeddings, finalK, {
+              initialization: clusteringConfig.algorithm === 'kmeans++' ? 'kmeans++' : 'random',
+              maxIterations: 100,
+              tolerance: 1e-4
+            });
+
+            sendProgress('clustering', 'Computing cluster assignments...', 80);
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            sendProgress('clustering', 'Calculating cluster centroids...', 85);
+
+            // Structure results similar to performClustering output
+            const clusters: any[][] = Array.from({ length: finalK }, () => []);
+            let totalInertia = 0;
+
+            kmeansResult.clusters.forEach((clusterId: number, index: number) => {
+              const distance = Math.sqrt(
+                embeddings[index].reduce((sum, val, i) => {
+                  const diff = val - kmeansResult.centroids[clusterId][i];
+                  return sum + diff * diff;
+                }, 0)
+              );
+
+              totalInertia += distance * distance;
+
+              clusters[clusterId].push({
+                clusterId,
+                title: reorderedTitles[index],
+                vector: embeddings[index],
+                distance
+              });
+            });
+
+            results = {
+              clusters,
+              centroids: kmeansResult.centroids,
+              inertia: totalInertia,
+              iterations: kmeansResult.iterations,
+              convergenceTime: 0,
+              statistics: {
+                clusterSizes: clusters.map(c => c.length),
+                avgCoverage: 100,
+                totalVideos: reorderedTitles.length,
+                processingTime: 0
+              }
+            };
+
+            sendProgress('post-processing', 'Generating cluster summaries from pre-existing embeddings...', 90);
+
+            // Generate summaries
+            summaries = generateClusterSummaries(results, processedTexts);
+
+            sendProgress('post-processing', 'Analysis complete using pre-existing embeddings!', 95);
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+          } else {
+            // Check embedding approach for generating new embeddings
+            console.log(`[EMBEDDING] Approach: ${word2vecConfig.approach}, Titles to cluster: ${titlesToCluster.length}`);
+            if (word2vecConfig.approach === 'sentence-transformers') {
+              console.log(`[EMBEDDING] Using sentence transformers with model: ${word2vecConfig.model}`);
+              sendProgress('embeddings', `Loading sentence transformer model for ${titlesToCluster.length} English videos...`, 15);
 
             let embeddings;
             try {
@@ -434,6 +544,7 @@ export async function POST(request: NextRequest) {
             summaries = generateClusterSummaries(results, processedTexts);
 
             sendProgress('post-processing', 'Finalizing results...', 90);
+            }
           }
 
           sendProgress('completed', `Analysis complete! Generated ${results.clusters.length} clusters.`, 100);

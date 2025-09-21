@@ -504,7 +504,7 @@ export default function Home() {
     setIsClusteringLoading(true);
     setClusteringError('');
     setClusteringResults(null);
-    setProcessedTexts([]);
+    // Don't clear processedTexts - we might want to use existing embeddings
     setClusteringProgress({
       stage: 'initialization',
       message: 'Connecting to clustering service...',
@@ -526,7 +526,24 @@ export default function Home() {
         handleUnknown: clusteringConfig.handleUnknown
       };
 
-      console.log('Starting clustering with streaming progress:', { word2vecConfig, clusteringConfig });
+      // Check if we have pre-existing embeddings from database import
+      const hasPreExistingEmbeddings = processedTexts.length > 0 &&
+        processedTexts.every(item => item.vector && item.vector.length > 0);
+
+      console.log('Starting clustering with streaming progress:', {
+        word2vecConfig,
+        clusteringConfig,
+        hasPreExistingEmbeddings,
+        preExistingCount: processedTexts.length
+      });
+
+      if (hasPreExistingEmbeddings) {
+        setClusteringProgress({
+          stage: 'initialization',
+          message: `Using ${processedTexts.length} pre-existing embeddings from database...`,
+          progress: 5
+        });
+      }
 
       // Use streaming API for real-time progress updates
       const response = await fetch('/api/clustering-stream', {
@@ -539,7 +556,8 @@ export default function Home() {
           word2vecConfig,
           clusteringConfig,
           huggingFaceApiKey: huggingFaceApiKey.trim() || undefined,
-          googleApiKey: googleApiKey.trim() || undefined
+          googleApiKey: googleApiKey.trim() || undefined,
+          preExistingEmbeddings: hasPreExistingEmbeddings ? processedTexts : undefined
         }),
       });
 
@@ -1847,9 +1865,20 @@ https://www.youtube.com/shorts/abc123"
         </p>
 
         {videos.length > 0 ? (
-          <div className="flex items-center gap-2 text-emerald-400">
-            <span>✅</span>
-            <span>Ready to analyze {videos.length} video titles from Data Mining tab</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-emerald-400">
+              <span>✅</span>
+              <span>Ready to analyze {videos.length} video titles from Data Mining tab</span>
+            </div>
+            {processedTexts.length > 0 && processedTexts.every(item => item.vector && item.vector.length > 0) && (
+              <div className="flex items-center gap-2 text-blue-400">
+                <span>🚀</span>
+                <span>
+                  {processedTexts.length} videos have pre-existing embeddings ({processedTexts[0]?.vector?.length || 0}D)
+                  - clustering will be instant!
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-2 text-amber-400">
