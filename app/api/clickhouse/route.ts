@@ -363,12 +363,46 @@ async function saveAnalysisResults(host: string, headers: any, database: string,
 // Get URLs from database
 async function getUrls(host: string, headers: any, database: string, limit: number) {
   try {
+    console.log(`Getting URLs from database: ${database}, limit: ${limit}`);
+
+    // First, check if table exists and has data
+    const countQuery = `SELECT count() as total FROM ${database}.urls`;
+
+    const countResponse = await fetch(host, {
+      method: 'POST',
+      headers,
+      body: countQuery,
+    });
+
+    if (!countResponse.ok) {
+      const errorText = await countResponse.text();
+      console.error('Count query failed:', errorText);
+      return Response.json({
+        success: false,
+        error: `Failed to check URL count: ${errorText}`
+      });
+    }
+
+    const countText = await countResponse.text();
+    const totalUrls = parseInt(countText.trim()) || 0;
+    console.log(`Total URLs in database: ${totalUrls}`);
+
+    if (totalUrls === 0) {
+      return Response.json({
+        success: true,
+        urls: [],
+        count: 0,
+        message: 'No URLs found in database'
+      });
+    }
+
+    // Get the URLs
     const query = `
       SELECT url, added_at, processed
       FROM ${database}.urls
       ORDER BY added_at DESC
       LIMIT ${limit}
-      FORMAT JSON;
+      FORMAT JSONEachRow
     `;
 
     const response = await fetch(host, {
@@ -379,21 +413,42 @@ async function getUrls(host: string, headers: any, database: string, limit: numb
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('URLs query failed:', errorText);
       return Response.json({
         success: false,
         error: `Failed to fetch URLs: ${errorText}`
       });
     }
 
-    const result = await response.json();
+    const resultText = await response.text();
+    console.log('Raw response from ClickHouse:', resultText);
+
+    // Parse JSONEachRow format (one JSON object per line)
+    const urls = resultText
+      .trim()
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => {
+        try {
+          return JSON.parse(line);
+        } catch (e) {
+          console.error('Failed to parse line:', line, e);
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    console.log(`Parsed ${urls.length} URLs from response`);
 
     return Response.json({
       success: true,
-      urls: result.data || [],
-      count: result.data?.length || 0
+      urls,
+      count: urls.length,
+      totalInDb: totalUrls
     });
 
   } catch (error: any) {
+    console.error('getUrls error:', error);
     return Response.json({
       success: false,
       error: `Fetch failed: ${error.message}`

@@ -657,12 +657,18 @@ export default function Home() {
 
       const result = await response.json();
 
-      if (result.success && result.urls.length > 0) {
-        const urlsText = result.urls.map((item: any) => item.url).join('\n');
-        setInputText(urlsText);
-        alert(`Imported ${result.urls.length} URLs from database. You can now fetch their titles.`);
+      console.log('Import URLs result:', result);
+
+      if (result.success) {
+        if (result.urls && result.urls.length > 0) {
+          const urlsText = result.urls.map((item: any) => item.url).join('\n');
+          setInputText(urlsText);
+          alert(`✅ Successfully imported ${result.urls.length} URLs from database${result.totalInDb ? ` (${result.totalInDb} total in DB)` : ''}.\n\nYou can now fetch their titles.`);
+        } else {
+          alert(`📄 Database is empty - no URLs found.\n\n${result.message || 'The URLs table exists but contains no data.'}\n\nPlease add some URLs first or check your database connection.`);
+        }
       } else {
-        alert('No URLs found in database or import failed.');
+        alert(`❌ Failed to import URLs from database.\n\nError: ${result.error}\n\nPlease check your database connection and try again.`);
       }
     } catch (error: any) {
       console.error('Import failed:', error);
