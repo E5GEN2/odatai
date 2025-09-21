@@ -398,10 +398,21 @@ export async function POST(request: NextRequest) {
             sendProgress('post-processing', 'Extracting keywords and insights...', 95);
             await new Promise(resolve => setTimeout(resolve, 200));
 
-          } else if (word2vecConfig.approach === 'google-gemini' || word2vecConfig.approach === 'google-gemini-3072') {
-            const isLargeModel = word2vecConfig.approach === 'google-gemini-3072';
-            const targetDimensions = isLargeModel ? 3072 : 768;
-            const modelName = isLargeModel ? 'models/gemini-embedding-001' : 'models/text-embedding-004';
+          } else if (word2vecConfig.approach === 'google-gemini' || word2vecConfig.approach === 'google-gemini-1536' || word2vecConfig.approach === 'google-gemini-3072') {
+            // Determine model and dimensions based on approach
+            let targetDimensions: number;
+            let modelName: string;
+
+            if (word2vecConfig.approach === 'google-gemini') {
+              targetDimensions = 768;
+              modelName = 'models/text-embedding-004';
+            } else if (word2vecConfig.approach === 'google-gemini-1536') {
+              targetDimensions = 1536;
+              modelName = 'models/gemini-embedding-001';
+            } else { // google-gemini-3072
+              targetDimensions = 3072;
+              modelName = 'models/gemini-embedding-001';
+            }
 
             console.log(`[EMBEDDING] Using Google Gemini embeddings with ${targetDimensions} dimensions (${modelName})`);
             sendProgress('embeddings', `Connecting to Google Gemini API for ${titlesToCluster.length} English videos...`, 15);

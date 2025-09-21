@@ -28,15 +28,22 @@ export async function getGoogleEmbeddings(
     const timeout = setTimeout(() => controller.abort(), 30000); // 30 seconds - much faster than HF
 
     const requestBody = {
-      requests: texts.map(text => ({
-        model: config.model && config.model.startsWith('models/') ? config.model : `models/${modelName}`,
-        content: {
-          parts: [{ text }]
-        },
-        taskType: config.taskType || 'SEMANTIC_SIMILARITY'
-        // Note: outputDimensionality is omitted to get full dimensional embeddings
-        // Text-embedding-004 should return 3072 dimensions by default
-      }))
+      requests: texts.map(text => {
+        const request: any = {
+          model: config.model && config.model.startsWith('models/') ? config.model : `models/${modelName}`,
+          content: {
+            parts: [{ text }]
+          },
+          taskType: config.taskType || 'SEMANTIC_SIMILARITY'
+        };
+
+        // Add outputDimensionality for gemini-embedding-001 model with non-default dimensions
+        if (modelName === 'gemini-embedding-001' && config.dimensions && config.dimensions !== 3072) {
+          request.outputDimensionality = config.dimensions;
+        }
+
+        return request;
+      })
     };
 
     const response = await fetch(`${API_URL}?key=${config.apiKey}`, {

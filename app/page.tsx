@@ -842,6 +842,10 @@ export default function Home() {
             ? clusteringConfig.sentenceTransformerModel
             : clusteringConfig.word2vecApproach === 'google-gemini'
             ? 'text-embedding-004'
+            : clusteringConfig.word2vecApproach === 'google-gemini-1536'
+            ? 'gemini-embedding-001'
+            : clusteringConfig.word2vecApproach === 'google-gemini-3072'
+            ? 'gemini-embedding-001'
             : 'word2vec',
           embedding_dimensions: embedding.length || 0,
           embedding_generated_at: new Date().toISOString(),
@@ -879,6 +883,10 @@ export default function Home() {
           ? clusteringConfig.sentenceTransformerModel
           : clusteringConfig.word2vecApproach === 'google-gemini'
           ? 'text-embedding-004'
+          : clusteringConfig.word2vecApproach === 'google-gemini-1536'
+          ? 'gemini-embedding-001'
+          : clusteringConfig.word2vecApproach === 'google-gemini-3072'
+          ? 'gemini-embedding-001'
           : 'word2vec',
         clusteringAlgorithm: clusteringConfig.algorithm,
         clusteringResults,
@@ -2428,6 +2436,7 @@ https://www.youtube.com/shorts/abc123"
                   word2vecApproach: approach,
                   // Update dimensions based on approach
                   dimensions: approach === 'google-gemini' ? 768 :
+                           approach === 'google-gemini-1536' ? 1536 :
                            approach === 'google-gemini-3072' ? 3072 :
                            approach === 'database' ? (processedTexts[0]?.vector?.length || 384) :
                            prev.dimensions
@@ -2441,6 +2450,7 @@ https://www.youtube.com/shorts/abc123"
               )}
               <option value="sentence-transformers">🚀 Sentence Transformers (Best Quality)</option>
               <option value="google-gemini">✨ Google Gemini text-embedding-004 (768D - High Quality)</option>
+              <option value="google-gemini-1536">⚡ Google Gemini embedding-001 (1536D - Balanced Quality)</option>
               <option value="google-gemini-3072">🚀 Google Gemini embedding-001 (3072D - Highest Quality)</option>
               <option value="pretrained">Pre-trained Word2Vec (Fast)</option>
               <option value="custom">Train on YouTube Data (Not Implemented)</option>
@@ -2455,6 +2465,7 @@ https://www.youtube.com/shorts/abc123"
             <span>🧠</span>
             {clusteringConfig.word2vecApproach === 'sentence-transformers' ? 'Sentence Transformer' :
              clusteringConfig.word2vecApproach === 'google-gemini' ? 'Google Gemini (768D)' :
+             clusteringConfig.word2vecApproach === 'google-gemini-1536' ? 'Google Gemini (1536D)' :
              clusteringConfig.word2vecApproach === 'google-gemini-3072' ? 'Google Gemini (3072D)' :
              clusteringConfig.word2vecApproach === 'database' ? 'Database Embeddings' : 'Word2Vec'} Configuration
           </h5>
@@ -2518,13 +2529,15 @@ https://www.youtube.com/shorts/abc123"
                 much better semantic understanding, handles phrases like "Apple stock" vs "Apple fruit" differently.
               </div>
             </>
-          ) : clusteringConfig.word2vecApproach === 'google-gemini' || clusteringConfig.word2vecApproach === 'google-gemini-3072' ? (
+          ) : clusteringConfig.word2vecApproach === 'google-gemini' || clusteringConfig.word2vecApproach === 'google-gemini-1536' || clusteringConfig.word2vecApproach === 'google-gemini-3072' ? (
             <>
               <div className="text-xs text-green-400 p-3 bg-green-950/30 rounded-lg mb-4 border border-green-800/30">
                 <strong>🚀 Google Gemini Embeddings:</strong> {
                   clusteringConfig.word2vecApproach === 'google-gemini'
                     ? 'Fast 768-dimensional embeddings from Google\'s text-embedding-004 model. Good quality with better speed.'
-                    : 'State-of-the-art 3072-dimensional embeddings from Google\'s embedding-001 model. Highest quality semantic understanding.'
+                    : clusteringConfig.word2vecApproach === 'google-gemini-1536'
+                    ? 'Balanced 1536-dimensional embeddings from Google\'s gemini-embedding-001 model. Great quality-performance trade-off.'
+                    : 'State-of-the-art 3072-dimensional embeddings from Google\'s gemini-embedding-001 model. Highest quality semantic understanding.'
                 }
               </div>
 
@@ -2532,6 +2545,8 @@ https://www.youtube.com/shorts/abc123"
                 <strong>Model:</strong> {
                   clusteringConfig.word2vecApproach === 'google-gemini'
                     ? 'text-embedding-004 (768 dimensions)'
+                    : clusteringConfig.word2vecApproach === 'google-gemini-1536'
+                    ? 'gemini-embedding-001 (1536 dimensions)'
                     : 'gemini-embedding-001 (3072 dimensions)'
                 }
               </div>
