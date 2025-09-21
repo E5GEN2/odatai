@@ -50,7 +50,9 @@ export default function Home() {
     removeStopwords: true,
     stemWords: true,
     lowercase: true,
-    handleUnknown: false
+    handleUnknown: false,
+    googleBatchSize: 25,
+    googleBatchDelay: 1000
   });
   const [kOptimizationResults, setKOptimizationResults] = useState<any>(null);
   const [processedTexts, setProcessedTexts] = useState<any[]>([]);
@@ -2532,6 +2534,54 @@ https://www.youtube.com/shorts/abc123"
                     ? 'text-embedding-004 (768 dimensions)'
                     : 'gemini-embedding-001 (3072 dimensions)'
                 }
+              </div>
+
+              {/* Google API Rate Limiting Controls */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Batch Size
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={clusteringConfig.googleBatchSize}
+                    onChange={(e) => setClusteringConfig(prev => ({ ...prev, googleBatchSize: parseInt(e.target.value) || 25 }))}
+                    className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="25"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Requests per batch (1-100). Lower = more reliable for free tier.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Batch Delay (ms)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="5000"
+                    step="100"
+                    value={clusteringConfig.googleBatchDelay}
+                    onChange={(e) => setClusteringConfig(prev => ({ ...prev, googleBatchDelay: parseInt(e.target.value) || 1000 }))}
+                    className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="1000"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Delay between batches. Increase if hitting rate limits.
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-xs text-gray-400 mt-3 p-2 bg-black/20 rounded-lg">
+                <strong>💡 Rate Limiting Tips:</strong>
+                <ul className="mt-1 space-y-1">
+                  <li>• <strong>Free tier:</strong> Use batch size 10-25, delay 1000-2000ms</li>
+                  <li>• <strong>Paid tier:</strong> Use batch size 50-100, delay 200-500ms</li>
+                  <li>• <strong>Hitting limits:</strong> Reduce batch size or increase delay</li>
+                </ul>
               </div>
             </>
           ) : (

@@ -417,7 +417,7 @@ export async function POST(request: NextRequest) {
               }, (batch: number, totalBatches: number, message: string) => {
                 const batchProgress = 20 + (batch / totalBatches) * 35; // 20% to 55%
                 sendProgress('embeddings', message, batchProgress);
-              });
+              }, clusteringConfig.googleBatchSize, clusteringConfig.googleBatchDelay);
 
               embeddings = embeddingResult.embeddings;
 

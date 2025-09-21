@@ -110,7 +110,9 @@ export async function getGoogleEmbeddings(
 export async function processYouTubeTitlesWithGoogle(
   titles: string[],
   config: GoogleEmbeddingConfig,
-  onProgress?: (batch: number, totalBatches: number, message: string) => void
+  onProgress?: (batch: number, totalBatches: number, message: string) => void,
+  batchSize?: number,
+  batchDelay?: number
 ): Promise<{
   embeddings: number[][];
   model: string;
@@ -122,18 +124,18 @@ export async function processYouTubeTitlesWithGoogle(
   try {
     console.log(`Getting Google embeddings for ${titles.length} titles using ${model}...`);
 
-    // Use smaller batches for Google free tier rate limits
-    const batchSize = Math.min(25, titles.length);
-    const totalBatches = Math.ceil(titles.length / batchSize);
+    // Use configurable batch size or fallback to default
+    const effectiveBatchSize = Math.min(batchSize || 25, titles.length);
+    const totalBatches = Math.ceil(titles.length / effectiveBatchSize);
     const allEmbeddings: number[][] = [];
 
-    for (let i = 0; i < titles.length; i += batchSize) {
-      const batchNumber = Math.floor(i / batchSize) + 1;
-      const batch = titles.slice(i, i + batchSize);
+    for (let i = 0; i < titles.length; i += effectiveBatchSize) {
+      const batchNumber = Math.floor(i / effectiveBatchSize) + 1;
+      const batch = titles.slice(i, i + effectiveBatchSize);
 
       if (onProgress) {
         const startVideo = i + 1;
-        const endVideo = Math.min(i + batchSize, titles.length);
+        const endVideo = Math.min(i + effectiveBatchSize, titles.length);
         onProgress(
           batchNumber,
           totalBatches,
@@ -152,9 +154,9 @@ export async function processYouTubeTitlesWithGoogle(
         throw batchError;
       }
 
-      // Longer delay to respect Google free tier rate limits
-      if (i + batchSize < titles.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay between batches
+      // Configurable delay to respect Google rate limits
+      if (i + effectiveBatchSize < titles.length) {
+        await new Promise(resolve => setTimeout(resolve, batchDelay || 1000));
       }
     }
 
