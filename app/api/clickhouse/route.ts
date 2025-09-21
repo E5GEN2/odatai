@@ -41,11 +41,17 @@ export async function POST(request: NextRequest) {
       case 'save_videos':
         return await saveVideos(host, headers, database, data?.videos || []);
 
+      case 'save_complete_videos':
+        return await saveCompleteVideos(host, headers, database, data?.videos || []);
+
       case 'save_results':
         return await saveAnalysisResults(host, headers, database, data?.results || {});
 
       case 'get_urls':
         return await getUrls(host, headers, database, data?.limit || 1000);
+
+      case 'get_videos_with_embeddings':
+        return await getVideosWithEmbeddings(host, headers, database, data?.limit || 1000);
 
       default:
         return Response.json({
@@ -111,7 +117,7 @@ async function createTables(host: string, headers: any, database: string) {
       SETTINGS index_granularity = 8192;
     `;
 
-    // Create videos table
+    // Create comprehensive videos table with all metadata
     const createVideosTable = `
       CREATE TABLE IF NOT EXISTS ${database}.videos (
         id String,
@@ -119,10 +125,30 @@ async function createTables(host: string, headers: any, database: string) {
         title String,
         thumbnail String,
         duration String,
+        view_count Nullable(UInt64),
+        like_count Nullable(UInt64),
+        comment_count Nullable(UInt64),
+        published_at Nullable(DateTime),
+        channel_id Nullable(String),
+        channel_title Nullable(String),
+        description Nullable(String),
+        tags Array(String) DEFAULT [],
+        category_id Nullable(String),
+        embedding Array(Float32) DEFAULT [],
+        embedding_model Nullable(String),
+        embedding_dimensions Nullable(UInt16),
+        embedding_generated_at Nullable(DateTime),
+        processed_for_clustering Boolean DEFAULT false,
+        language_detected Nullable(String),
+        language_confidence Nullable(Float32),
         added_at DateTime DEFAULT now(),
+        updated_at DateTime DEFAULT now(),
         INDEX idx_id id TYPE bloom_filter GRANULARITY 1,
-        INDEX idx_url url TYPE bloom_filter GRANULARITY 1
-      ) ENGINE = ReplacingMergeTree()
+        INDEX idx_url url TYPE bloom_filter GRANULARITY 1,
+        INDEX idx_title title TYPE bloom_filter GRANULARITY 1,
+        INDEX idx_channel channel_id TYPE bloom_filter GRANULARITY 1,
+        INDEX idx_embedding_model embedding_model TYPE bloom_filter GRANULARITY 1
+      ) ENGINE = ReplacingMergeTree(updated_at)
       ORDER BY id
       SETTINGS index_granularity = 8192;
     `;
@@ -248,7 +274,99 @@ async function importUrls(host: string, headers: any, database: string, urls: st
   }
 }
 
-// Save video data (with duplicate prevention)
+// Save complete video data with all metadata (new comprehensive version)
+async function saveCompleteVideos(host: string, headers: any, database: string, videos: any[]) {
+  try {
+    if (!videos || videos.length === 0) {
+      return Response.json({
+        success: false,
+        error: 'No videos provided'
+      });
+    }
+
+    console.log('Saving complete videos to ClickHouse:', {
+      count: videos.length,
+      sampleVideo: videos[0],
+      database
+    });
+
+    // First, create tables if they don't exist
+    await createTables(host, headers, database);
+
+    // Use the same comprehensive insert logic
+    const values = videos.map(video => {
+      const id = video.id || '';
+      const url = (video.url || '').replace(/'/g, "''");
+      const title = (video.title || '').replace(/'/g, "''");
+      const thumbnail = (video.thumbnail || '').replace(/'/g, "''");
+      const duration = video.duration || '';
+      const view_count = video.view_count || 'NULL';
+      const like_count = video.like_count || 'NULL';
+      const comment_count = video.comment_count || 'NULL';
+      const published_at = video.published_at ? `'${video.published_at}'` : 'NULL';
+      const channel_id = video.channel_id ? `'${video.channel_id.replace(/'/g, "''")}'` : 'NULL';
+      const channel_title = video.channel_title ? `'${video.channel_title.replace(/'/g, "''")}'` : 'NULL';
+      const description = video.description ? `'${video.description.replace(/'/g, "''")}'` : 'NULL';
+      const tags = video.tags && Array.isArray(video.tags)
+        ? `[${video.tags.map(tag => `'${tag.replace(/'/g, "''")}'`).join(',')}]`
+        : '[]';
+      const category_id = video.category_id ? `'${video.category_id}'` : 'NULL';
+
+      // Handle embeddings
+      const embedding = video.embedding && Array.isArray(video.embedding)
+        ? `[${video.embedding.join(',')}]`
+        : '[]';
+      const embedding_model = video.embedding_model ? `'${video.embedding_model.replace(/'/g, "''")}'` : 'NULL';
+      const embedding_dimensions = video.embedding_dimensions || 'NULL';
+      const embedding_generated_at = video.embedding_generated_at ? `'${video.embedding_generated_at}'` : 'NULL';
+
+      // Language detection
+      const language_detected = video.language_detected ? `'${video.language_detected}'` : 'NULL';
+      const language_confidence = video.language_confidence || 'NULL';
+
+      const processed_for_clustering = video.processed_for_clustering ? 'true' : 'false';
+
+      return `('${id}', '${url}', '${title}', '${thumbnail}', '${duration}', ${view_count}, ${like_count}, ${comment_count}, ${published_at}, ${channel_id}, ${channel_title}, ${description}, ${tags}, ${category_id}, ${embedding}, ${embedding_model}, ${embedding_dimensions}, ${embedding_generated_at}, ${processed_for_clustering}, ${language_detected}, ${language_confidence}, now(), now())`;
+    }).join(',');
+
+    const insertQuery = `
+      INSERT INTO ${database}.videos (
+        id, url, title, thumbnail, duration, view_count, like_count, comment_count,
+        published_at, channel_id, channel_title, description, tags, category_id,
+        embedding, embedding_model, embedding_dimensions, embedding_generated_at,
+        processed_for_clustering, language_detected, language_confidence, added_at, updated_at
+      )
+      VALUES ${values};
+    `;
+
+    const response = await fetch(host, {
+      method: 'POST',
+      headers,
+      body: insertQuery,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return Response.json({
+        success: false,
+        error: `Failed to save complete videos: ${errorText}`
+      });
+    }
+
+    return Response.json({
+      success: true,
+      message: `${videos.length} complete videos saved successfully with all metadata`
+    });
+
+  } catch (error: any) {
+    return Response.json({
+      success: false,
+      error: `Save failed: ${error.message}`
+    });
+  }
+}
+
+// Save video data (legacy version for backward compatibility)
 async function saveVideos(host: string, headers: any, database: string, videos: any[]) {
   try {
     if (!videos || videos.length === 0) {
@@ -267,19 +385,49 @@ async function saveVideos(host: string, headers: any, database: string, videos: 
     // First, create tables if they don't exist
     await createTables(host, headers, database);
 
-    // Prepare values for batch insert
+    // Prepare values for comprehensive batch insert
     const values = videos.map(video => {
       const id = video.id || '';
       const url = (video.url || '').replace(/'/g, "''");
       const title = (video.title || '').replace(/'/g, "''");
       const thumbnail = (video.thumbnail || '').replace(/'/g, "''");
       const duration = video.duration || '';
+      const view_count = video.view_count || 'NULL';
+      const like_count = video.like_count || 'NULL';
+      const comment_count = video.comment_count || 'NULL';
+      const published_at = video.published_at ? `'${video.published_at}'` : 'NULL';
+      const channel_id = video.channel_id ? `'${video.channel_id.replace(/'/g, "''")}'` : 'NULL';
+      const channel_title = video.channel_title ? `'${video.channel_title.replace(/'/g, "''")}'` : 'NULL';
+      const description = video.description ? `'${video.description.replace(/'/g, "''")}'` : 'NULL';
+      const tags = video.tags && Array.isArray(video.tags)
+        ? `[${video.tags.map(tag => `'${tag.replace(/'/g, "''")}'`).join(',')}]`
+        : '[]';
+      const category_id = video.category_id ? `'${video.category_id}'` : 'NULL';
 
-      return `('${id}', '${url}', '${title}', '${thumbnail}', '${duration}')`;
+      // Handle embeddings
+      const embedding = video.embedding && Array.isArray(video.embedding)
+        ? `[${video.embedding.join(',')}]`
+        : '[]';
+      const embedding_model = video.embedding_model ? `'${video.embedding_model.replace(/'/g, "''")}'` : 'NULL';
+      const embedding_dimensions = video.embedding_dimensions || 'NULL';
+      const embedding_generated_at = video.embedding_generated_at ? `'${video.embedding_generated_at}'` : 'NULL';
+
+      // Language detection
+      const language_detected = video.language_detected ? `'${video.language_detected}'` : 'NULL';
+      const language_confidence = video.language_confidence || 'NULL';
+
+      const processed_for_clustering = video.processed_for_clustering ? 'true' : 'false';
+
+      return `('${id}', '${url}', '${title}', '${thumbnail}', '${duration}', ${view_count}, ${like_count}, ${comment_count}, ${published_at}, ${channel_id}, ${channel_title}, ${description}, ${tags}, ${category_id}, ${embedding}, ${embedding_model}, ${embedding_dimensions}, ${embedding_generated_at}, ${processed_for_clustering}, ${language_detected}, ${language_confidence}, now(), now())`;
     }).join(',');
 
     const insertQuery = `
-      INSERT INTO ${database}.videos (id, url, title, thumbnail, duration)
+      INSERT INTO ${database}.videos (
+        id, url, title, thumbnail, duration, view_count, like_count, comment_count,
+        published_at, channel_id, channel_title, description, tags, category_id,
+        embedding, embedding_model, embedding_dimensions, embedding_generated_at,
+        processed_for_clustering, language_detected, language_confidence, added_at, updated_at
+      )
       VALUES ${values};
     `;
 
@@ -511,6 +659,108 @@ async function getUrls(host: string, headers: any, database: string, limit: numb
 
   } catch (error: any) {
     console.error('getUrls error:', error);
+    return Response.json({
+      success: false,
+      error: `Fetch failed: ${error.message}`
+    });
+  }
+}
+
+// Get videos with embeddings and all metadata
+async function getVideosWithEmbeddings(host: string, headers: any, database: string, limit: number) {
+  try {
+    console.log(`Getting videos with embeddings from database: ${database}, limit: ${limit}`);
+
+    // First, check if table exists and has data
+    const countQuery = `SELECT count() as total FROM ${database}.videos WHERE length(embedding) > 0`;
+
+    const countResponse = await fetch(host, {
+      method: 'POST',
+      headers,
+      body: countQuery,
+    });
+
+    if (!countResponse.ok) {
+      const errorText = await countResponse.text();
+      console.error('Count query failed:', errorText);
+      return Response.json({
+        success: false,
+        error: `Failed to check video count: ${errorText}`
+      });
+    }
+
+    const countText = await countResponse.text();
+    const totalVideosWithEmbeddings = parseInt(countText.trim()) || 0;
+    console.log(`Total videos with embeddings in database: ${totalVideosWithEmbeddings}`);
+
+    if (totalVideosWithEmbeddings === 0) {
+      return Response.json({
+        success: true,
+        videos: [],
+        count: 0,
+        message: 'No videos with embeddings found in database'
+      });
+    }
+
+    // Get the videos with all metadata
+    const query = `
+      SELECT
+        id, url, title, thumbnail, duration, view_count, like_count, comment_count,
+        published_at, channel_id, channel_title, description, tags, category_id,
+        embedding, embedding_model, embedding_dimensions, embedding_generated_at,
+        processed_for_clustering, language_detected, language_confidence,
+        added_at, updated_at
+      FROM ${database}.videos
+      WHERE length(embedding) > 0
+      ORDER BY updated_at DESC
+      LIMIT ${limit}
+      FORMAT JSONEachRow
+    `;
+
+    const response = await fetch(host, {
+      method: 'POST',
+      headers,
+      body: query,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Videos query failed:', errorText);
+      return Response.json({
+        success: false,
+        error: `Failed to fetch videos: ${errorText}`
+      });
+    }
+
+    const resultText = await response.text();
+    console.log(`Raw video response from ClickHouse (${resultText.length} chars)`);
+
+    // Parse JSONEachRow format (one JSON object per line)
+    const videos = resultText
+      .trim()
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => {
+        try {
+          return JSON.parse(line);
+        } catch (e) {
+          console.error('Failed to parse video line:', line, e);
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    console.log(`Parsed ${videos.length} videos with embeddings from response`);
+
+    return Response.json({
+      success: true,
+      videos,
+      count: videos.length,
+      totalInDb: totalVideosWithEmbeddings
+    });
+
+  } catch (error: any) {
+    console.error('getVideosWithEmbeddings error:', error);
     return Response.json({
       success: false,
       error: `Fetch failed: ${error.message}`

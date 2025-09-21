@@ -679,7 +679,7 @@ export default function Home() {
     }
   };
 
-  // Save analysis results to ClickHouse database
+  // Save analysis results and videos with embeddings to ClickHouse database
   const saveAnalysisResults = async () => {
     if (!isConnected) {
       alert('Please connect to your ClickHouse database first in the Database tab.');
@@ -692,6 +692,46 @@ export default function Home() {
     }
 
     try {
+      // Prepare videos with embeddings data
+      const videosWithEmbeddings = videos.map((video, index) => {
+        const processedText = processedTexts[index];
+        const embedding = processedText?.vector || [];
+
+        return {
+          ...video,
+          embedding: embedding,
+          embedding_model: clusteringConfig.word2vecApproach === 'sentence-transformers'
+            ? clusteringConfig.sentenceTransformerModel
+            : 'word2vec',
+          embedding_dimensions: embedding.length || 0,
+          embedding_generated_at: new Date().toISOString(),
+          processed_for_clustering: true,
+          language_detected: 'en', // You could integrate language detection here
+          language_confidence: 0.95 // Default confidence for English content
+        };
+      }).filter(video => video.embedding.length > 0); // Only save videos with embeddings
+
+      // Save videos with embeddings first
+      if (videosWithEmbeddings.length > 0) {
+        const videoResponse = await fetch('/api/clickhouse', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'save_complete_videos',
+            config: clickhouseConfig,
+            data: { videos: videosWithEmbeddings }
+          }),
+        });
+
+        const videoResult = await videoResponse.json();
+        if (!videoResult.success) {
+          throw new Error(`Failed to save videos with embeddings: ${videoResult.error}`);
+        }
+      }
+
+      // Save analysis results
       const analysisData = {
         videoCount: videos.length,
         clusterCount: clusteringResults.clusters.length,
@@ -724,7 +764,7 @@ export default function Home() {
       const result = await response.json();
 
       if (result.success) {
-        alert(`Successfully saved analysis results to database.\nSession ID: ${result.sessionId}`);
+        alert(`✅ Successfully saved complete analysis to database!\n\n📊 Analysis Results: Session ID ${result.sessionId}\n🎬 Videos with Embeddings: ${videosWithEmbeddings.length} videos\n🤖 Model: ${clusteringConfig.sentenceTransformerModel || 'word2vec'}\n📏 Dimensions: ${videosWithEmbeddings[0]?.embedding_dimensions || 'N/A'}`);
       } else {
         alert(`Failed to save analysis results: ${result.error}`);
       }
