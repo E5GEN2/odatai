@@ -1,0 +1,18 @@
+Username
+S_4k5q3d98KIc
+
+
+
+Password
+S_4k5q3d98KIc
+
+Connect with:
+
+
+HTTPS
+Run the following command from your terminal:
+
+
+curl --user 'default:S_4k5q3d98KIc' \
+  --data-binary 'SELECT 1' \
+  https://trn0d6m9sp.germanywestcentral.azure.clickhouse.cloud:8443

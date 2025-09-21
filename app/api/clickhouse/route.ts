@@ -194,7 +194,7 @@ async function importUrls(host: string, headers: any, database: string, urls: st
     await createTables(host, headers, database);
 
     // Prepare insert query with deduplication
-    const values = urls.map(url => `('${url.replace(/'/g, "''")}')`).join(',');
+    const values = urls.map(url => `('${(url || '').replace(/'/g, "''")}')`).join(',');
     const insertQuery = `
       INSERT INTO ${database}.urls (url)
       SELECT url FROM (
@@ -258,13 +258,25 @@ async function saveVideos(host: string, headers: any, database: string, videos: 
       });
     }
 
+    console.log('Saving videos to ClickHouse:', {
+      count: videos.length,
+      sampleVideo: videos[0],
+      database
+    });
+
     // First, create tables if they don't exist
     await createTables(host, headers, database);
 
     // Prepare values for batch insert
-    const values = videos.map(video =>
-      `('${video.id}', '${video.url.replace(/'/g, "''")}', '${video.title.replace(/'/g, "''")}', '${video.thumbnail.replace(/'/g, "''")}', '${video.duration}')`
-    ).join(',');
+    const values = videos.map(video => {
+      const id = video.id || '';
+      const url = (video.url || '').replace(/'/g, "''");
+      const title = (video.title || '').replace(/'/g, "''");
+      const thumbnail = (video.thumbnail || '').replace(/'/g, "''");
+      const duration = video.duration || '';
+
+      return `('${id}', '${url}', '${title}', '${thumbnail}', '${duration}')`;
+    }).join(',');
 
     const insertQuery = `
       INSERT INTO ${database}.videos (id, url, title, thumbnail, duration)
