@@ -1,7 +1,7 @@
 // Word2Vec utilities for YouTube title clustering
 import * as natural from 'natural';
 // @ts-ignore - No types available for stopwords
-import { removeStopwords, eng } from 'stopwords';
+import { removeStopwords as removeStopwordsLib, eng } from 'stopwords';
 // @ts-ignore - No types available for stemmer
 import { stemmer } from 'stemmer';
 
@@ -77,7 +77,7 @@ export function preprocessText(
 
   // Remove stopwords
   if (config.removeStopwords) {
-    tokens = removeStopwords(tokens, eng);
+    tokens = removeStopwordsLib(tokens, eng);
   }
 
   // Stem words
