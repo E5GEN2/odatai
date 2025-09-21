@@ -605,6 +605,136 @@ export default function Home() {
     }
   }, []);
 
+  // Import URLs from ClickHouse database
+  const importUrlsFromDatabase = async () => {
+    if (!isConnected) {
+      alert('Please connect to your ClickHouse database first in the Database tab.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch('/api/clickhouse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'get_urls',
+          config: clickhouseConfig,
+          data: { limit: 1000 }
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.urls.length > 0) {
+        const urlsText = result.urls.map((item: any) => item.url).join('\n');
+        setInputText(urlsText);
+        alert(`Imported ${result.urls.length} URLs from database. You can now fetch their titles.`);
+      } else {
+        alert('No URLs found in database or import failed.');
+      }
+    } catch (error: any) {
+      console.error('Import failed:', error);
+      alert(`Import failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Save analysis results to ClickHouse database
+  const saveAnalysisResults = async () => {
+    if (!isConnected) {
+      alert('Please connect to your ClickHouse database first in the Database tab.');
+      return;
+    }
+
+    if (!clusteringResults || !clusterSummaries) {
+      alert('No analysis results to save. Please run clustering analysis first.');
+      return;
+    }
+
+    try {
+      const analysisData = {
+        videoCount: videos.length,
+        clusterCount: clusteringResults.clusters.length,
+        embeddingModel: word2vecConfig.model,
+        clusteringAlgorithm: clusteringConfig.algorithm,
+        clusteringResults,
+        clusterSummaries,
+        videos,
+        processedTexts,
+        configuration: {
+          word2vecConfig,
+          clusteringConfig
+        },
+        kOptimization: kOptimizationResults
+      };
+
+      const response = await fetch('/api/clickhouse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'save_results',
+          config: clickhouseConfig,
+          data: { results: analysisData }
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`Successfully saved analysis results to database.\nSession ID: ${result.sessionId}`);
+      } else {
+        alert(`Failed to save analysis results: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Save failed:', error);
+      alert(`Save failed: ${error.message}`);
+    }
+  };
+
+  // Save current video data to ClickHouse database
+  const saveVideosToDatabase = async () => {
+    if (!isConnected) {
+      alert('Please connect to your ClickHouse database first in the Database tab.');
+      return;
+    }
+
+    if (videos.length === 0) {
+      alert('No video data to save. Please fetch some videos first.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/clickhouse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'save_videos',
+          config: clickhouseConfig,
+          data: { videos }
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`Successfully saved ${videos.length} videos to database.`);
+      } else {
+        alert(`Failed to save videos: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Save failed:', error);
+      alert(`Save failed: ${error.message}`);
+    }
+  };
+
   // Test ClickHouse connection
   const testClickHouseConnection = async () => {
     setConnectionStatus('testing');
@@ -898,6 +1028,33 @@ https://www.youtube.com/shorts/abc123"
               className="bg-gradient-to-r from-purple-600 to-cyan-600 h-2 rounded-full transition-all duration-300"
               style={{ width: `${(progress.current / progress.total) * 100}%` }}
             ></div>
+          </div>
+        </div>
+      )}
+
+      {/* Database Operations */}
+      {isConnected && (
+        <div className="mb-6 p-4 bg-emerald-950/20 border border-emerald-800/30 rounded-xl">
+          <h3 className="text-emerald-400 font-semibold mb-3 flex items-center gap-2">
+            <span>🗄️</span>
+            Database Operations
+          </h3>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={importUrlsFromDatabase}
+              disabled={loading}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              📥 Import URLs from DB
+            </button>
+            {videos.length > 0 && (
+              <button
+                onClick={saveVideosToDatabase}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                💾 Save Videos to DB
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1941,6 +2098,19 @@ https://www.youtube.com/shorts/abc123"
                 <div className="text-sm text-gray-400">Processing Time</div>
               </div>
             </div>
+
+            {/* Database Save Button */}
+            {isConnected && (
+              <div className="mt-6 pt-4 border-t border-gray-700">
+                <button
+                  onClick={saveAnalysisResults}
+                  className="w-full px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
+                >
+                  <span>💾</span>
+                  Save Analysis Results to Database
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Interactive Visualization */}
