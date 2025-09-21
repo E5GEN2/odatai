@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
 
             kmeansResult.clusters.forEach((clusterId: number, index: number) => {
               const distance = Math.sqrt(
-                embeddings[index].reduce((sum, val, i) => {
+                embeddings[index].reduce((sum: number, val: number, i: number) => {
                   const diff = val - kmeansResult.centroids[clusterId][i];
                   return sum + diff * diff;
                 }, 0)
@@ -352,7 +352,7 @@ export async function POST(request: NextRequest) {
 
             kmeansResult.clusters.forEach((clusterId: number, index: number) => {
               const distance = Math.sqrt(
-                embeddings[index].reduce((sum, val, i) => {
+                embeddings[index].reduce((sum: number, val: number, i: number) => {
                   const diff = val - kmeansResult.centroids[clusterId][i];
                   return sum + diff * diff;
                 }, 0)
@@ -475,7 +475,7 @@ export async function POST(request: NextRequest) {
 
             kmeansResult.clusters.forEach((clusterId: number, index: number) => {
               const distance = Math.sqrt(
-                embeddings[index].reduce((sum, val, i) => {
+                embeddings[index].reduce((sum: number, val: number, i: number) => {
                   const diff = val - kmeansResult.centroids[clusterId][i];
                   return sum + diff * diff;
                 }, 0)
