@@ -15,7 +15,7 @@ interface VideoData {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'data-mining' | 'analyze'>('data-mining');
+  const [activeTab, setActiveTab] = useState<'database' | 'data-mining' | 'analyze'>('database');
   const [inputText, setInputText] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [huggingFaceApiKey, setHuggingFaceApiKey] = useState('');
@@ -70,6 +70,17 @@ export default function Home() {
     }>;
   } | null>(null);
   const [showSimilarityModal, setShowSimilarityModal] = useState(false);
+
+  // ClickHouse Database state
+  const [clickhouseConfig, setClickhouseConfig] = useState({
+    host: '',
+    username: 'default',
+    password: '',
+    database: 'default'
+  });
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'connected' | 'error'>('idle');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -593,6 +604,211 @@ export default function Home() {
       setHuggingFaceApiKey(savedHuggingFaceKey);
     }
   }, []);
+
+  // Test ClickHouse connection
+  const testClickHouseConnection = async () => {
+    setConnectionStatus('testing');
+    setConnectionError(null);
+
+    try {
+      const response = await fetch('/api/clickhouse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'test',
+          config: clickhouseConfig
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setConnectionStatus('connected');
+        setIsConnected(true);
+      } else {
+        setConnectionStatus('error');
+        setConnectionError(result.error || 'Connection failed');
+        setIsConnected(false);
+      }
+    } catch (error: any) {
+      setConnectionStatus('error');
+      setConnectionError(error.message || 'Connection failed');
+      setIsConnected(false);
+    }
+  };
+
+  const renderDatabaseTab = () => (
+    <div className="space-y-8">
+      <div className="text-center mb-8">
+        <h2 className="text-4xl font-bold text-white mb-4">
+          🗄️ ClickHouse Database Management
+        </h2>
+        <p className="text-gray-400 text-lg max-w-3xl mx-auto leading-relaxed">
+          Connect to your ClickHouse database to import URLs for data mining and save analysis results.
+          Automatically prevents duplicate entries and maintains data integrity.
+        </p>
+      </div>
+
+      {/* Connection Status */}
+      <div className="bg-black/30 rounded-xl p-6 border border-gray-800">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-semibold text-white">Connection Status</h3>
+          <div className={`px-3 py-1 rounded-full text-sm font-semibold ${
+            connectionStatus === 'connected' ? 'bg-green-600/20 text-green-400' :
+            connectionStatus === 'error' ? 'bg-red-600/20 text-red-400' :
+            connectionStatus === 'testing' ? 'bg-yellow-600/20 text-yellow-400' :
+            'bg-gray-600/20 text-gray-400'
+          }`}>
+            {connectionStatus === 'connected' ? '✅ Connected' :
+             connectionStatus === 'error' ? '❌ Error' :
+             connectionStatus === 'testing' ? '🔄 Testing...' :
+             '⚪ Not Connected'}
+          </div>
+        </div>
+
+        {connectionError && (
+          <div className="bg-red-600/10 border border-red-600/30 rounded-lg p-3 mb-4">
+            <p className="text-red-400 text-sm">{connectionError}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Connection Configuration */}
+      <div className="bg-black/30 rounded-xl p-6 border border-gray-800">
+        <h3 className="text-xl font-semibold text-white mb-4">ClickHouse Configuration</h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Host URL
+            </label>
+            <input
+              type="text"
+              value={clickhouseConfig.host}
+              onChange={(e) => setClickhouseConfig(prev => ({ ...prev, host: e.target.value }))}
+              placeholder="e.g., https://trn0d6m9sp.germanywestcentral.azure.clickhouse.cloud:8443"
+              className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Database Name
+            </label>
+            <input
+              type="text"
+              value={clickhouseConfig.database}
+              onChange={(e) => setClickhouseConfig(prev => ({ ...prev, database: e.target.value }))}
+              placeholder="default"
+              className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Username
+            </label>
+            <input
+              type="text"
+              value={clickhouseConfig.username}
+              onChange={(e) => setClickhouseConfig(prev => ({ ...prev, username: e.target.value }))}
+              placeholder="default"
+              className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Password
+            </label>
+            <input
+              type="password"
+              value={clickhouseConfig.password}
+              onChange={(e) => setClickhouseConfig(prev => ({ ...prev, password: e.target.value }))}
+              placeholder="Enter your password"
+              className="w-full px-3 py-2 bg-black/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-4">
+          <button
+            onClick={testClickHouseConnection}
+            disabled={connectionStatus === 'testing' || !clickhouseConfig.host || !clickhouseConfig.password}
+            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
+          >
+            {connectionStatus === 'testing' ? 'Testing Connection...' : 'Test Connection'}
+          </button>
+
+          {isConnected && (
+            <button
+              onClick={() => {
+                setConnectionStatus('idle');
+                setIsConnected(false);
+                setConnectionError(null);
+              }}
+              className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-xl transition-colors"
+            >
+              Disconnect
+            </button>
+          )}
+        </div>
+
+        {/* Example curl command */}
+        <div className="mt-6 p-4 bg-black/40 rounded-lg border border-gray-700">
+          <h4 className="text-sm font-semibold text-gray-300 mb-2">Example Configuration:</h4>
+          <p className="text-xs text-gray-400 mb-2">
+            Based on your provided curl command:
+          </p>
+          <code className="text-xs text-green-400 bg-black/60 p-2 rounded block">
+            curl --user 'default:S_4k5q3d98KIc' --data-binary 'SELECT 1' https://trn0d6m9sp.germanywestcentral.azure.clickhouse.cloud:8443
+          </code>
+          <div className="mt-2 text-xs text-gray-500">
+            <p>• Host: https://trn0d6m9sp.germanywestcentral.azure.clickhouse.cloud:8443</p>
+            <p>• Username: default</p>
+            <p>• Password: S_4k5q3d98KIc</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Database Operations */}
+      {isConnected && (
+        <div className="bg-black/30 rounded-xl p-6 border border-gray-800">
+          <h3 className="text-xl font-semibold text-white mb-4">Database Operations</h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-black/40 rounded-lg p-4 border border-gray-700">
+              <h4 className="text-lg font-semibold text-white mb-2">📥 Import URLs</h4>
+              <p className="text-gray-400 text-sm mb-4">
+                Load YouTube URLs from your database into the Data Mining tab for analysis.
+              </p>
+              <button
+                onClick={() => setActiveTab('data-mining')}
+                className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
+              >
+                Go to Data Mining Tab
+              </button>
+            </div>
+
+            <div className="bg-black/40 rounded-lg p-4 border border-gray-700">
+              <h4 className="text-lg font-semibold text-white mb-2">💾 Save Results</h4>
+              <p className="text-gray-400 text-sm mb-4">
+                Export analysis results, clustering data, and video metadata to your database.
+              </p>
+              <button
+                onClick={() => setActiveTab('analyze')}
+                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+              >
+                Go to Analysis Tab
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   const renderDataMiningTab = () => (
     <>
@@ -1819,6 +2035,16 @@ https://www.youtube.com/shorts/abc123"
           <div className="flex justify-center mb-8">
             <div className="bg-black/50 backdrop-blur-md border border-gray-800 rounded-2xl p-1 flex gap-1">
               <button
+                onClick={() => setActiveTab('database')}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  activeTab === 'database'
+                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                }`}
+              >
+                🗄️ Database
+              </button>
+              <button
                 onClick={() => setActiveTab('data-mining')}
                 className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
                   activeTab === 'data-mining'
@@ -1843,7 +2069,8 @@ https://www.youtube.com/shorts/abc123"
 
           {/* Main Content */}
           <div className="backdrop-blur-xl bg-gray-900/50 rounded-3xl shadow-2xl border border-gray-800 p-8 animate-fade-in">
-            {activeTab === 'data-mining' ? renderDataMiningTab() : renderAnalyzeTab()}
+            {activeTab === 'database' ? renderDatabaseTab() :
+             activeTab === 'data-mining' ? renderDataMiningTab() : renderAnalyzeTab()}
           </div>
 
           {/* Footer */}
