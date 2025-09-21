@@ -388,11 +388,73 @@ async function getUrls(host: string, headers: any, database: string, limit: numb
     console.log(`Total URLs in database: ${totalUrls}`);
 
     if (totalUrls === 0) {
+      // Check if there are URLs in the videos table instead
+      console.log('No URLs in urls table, checking videos table...');
+
+      const videoCountQuery = `SELECT count() as total FROM ${database}.videos`;
+      const videoCountResponse = await fetch(host, {
+        method: 'POST',
+        headers,
+        body: videoCountQuery,
+      });
+
+      if (videoCountResponse.ok) {
+        const videoCountText = await videoCountResponse.text();
+        const totalVideos = parseInt(videoCountText.trim()) || 0;
+        console.log(`Total videos in database: ${totalVideos}`);
+
+        if (totalVideos > 0) {
+          // Get URLs from videos table
+          const videoQuery = `
+            SELECT url, added_at
+            FROM ${database}.videos
+            ORDER BY added_at DESC
+            LIMIT ${limit}
+            FORMAT JSONEachRow
+          `;
+
+          const videoResponse = await fetch(host, {
+            method: 'POST',
+            headers,
+            body: videoQuery,
+          });
+
+          if (videoResponse.ok) {
+            const videoResultText = await videoResponse.text();
+            console.log('Raw video response from ClickHouse:', videoResultText);
+
+            const videoUrls = videoResultText
+              .trim()
+              .split('\n')
+              .filter(line => line.trim())
+              .map(line => {
+                try {
+                  return JSON.parse(line);
+                } catch (e) {
+                  console.error('Failed to parse video line:', line, e);
+                  return null;
+                }
+              })
+              .filter(Boolean);
+
+            console.log(`Parsed ${videoUrls.length} URLs from videos table`);
+
+            return Response.json({
+              success: true,
+              urls: videoUrls,
+              count: videoUrls.length,
+              totalInDb: totalVideos,
+              source: 'videos table'
+            });
+          }
+        }
+      }
+
       return Response.json({
         success: true,
         urls: [],
         count: 0,
-        message: 'No URLs found in database'
+        message: 'No URLs found in either urls or videos tables'
       });
     }
 

@@ -663,7 +663,8 @@ export default function Home() {
         if (result.urls && result.urls.length > 0) {
           const urlsText = result.urls.map((item: any) => item.url).join('\n');
           setInputText(urlsText);
-          alert(`✅ Successfully imported ${result.urls.length} URLs from database${result.totalInDb ? ` (${result.totalInDb} total in DB)` : ''}.\n\nYou can now fetch their titles.`);
+          const sourceInfo = result.source ? ` from ${result.source}` : '';
+          alert(`✅ Successfully imported ${result.urls.length} URLs${sourceInfo}${result.totalInDb ? ` (${result.totalInDb} total in DB)` : ''}.\n\nYou can now fetch their titles.`);
         } else {
           alert(`📄 Database is empty - no URLs found.\n\n${result.message || 'The URLs table exists but contains no data.'}\n\nPlease add some URLs first or check your database connection.`);
         }
