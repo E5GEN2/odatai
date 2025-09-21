@@ -659,14 +659,15 @@ export default function Home() {
       const analysisData = {
         videoCount: videos.length,
         clusterCount: clusteringResults.clusters.length,
-        embeddingModel: word2vecConfig.model,
+        embeddingModel: clusteringConfig.word2vecApproach === 'sentence-transformers'
+          ? clusteringConfig.sentenceTransformerModel
+          : 'word2vec',
         clusteringAlgorithm: clusteringConfig.algorithm,
         clusteringResults,
         clusterSummaries,
         videos,
         processedTexts,
         configuration: {
-          word2vecConfig,
           clusteringConfig
         },
         kOptimization: kOptimizationResults
