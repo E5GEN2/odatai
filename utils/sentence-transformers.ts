@@ -163,17 +163,17 @@ export async function processYouTubeTitles(
     // Batch process if needed (API might have limits) - much smaller batches for reliability
     const isLargerModel = model.includes('bge-base') || model.includes('bge-large');
 
-    // Use smaller batches for large datasets and larger models to prevent timeouts
+    // Use much more aggressive batch sizes for BGE Large to prevent timeouts
     let batchSize;
     if (titles.length > 500) {
-      // For large datasets (500+ videos), use very small batches
-      batchSize = isLargerModel ? 15 : 25;
+      // For large datasets (500+ videos), use tiny batches for BGE Large
+      batchSize = isLargerModel ? 8 : 25;
     } else if (titles.length > 200) {
       // For medium datasets (200-500 videos), use small batches
-      batchSize = isLargerModel ? 25 : 40;
+      batchSize = isLargerModel ? 12 : 40;
     } else {
       // For small datasets (<200 videos), use normal batches
-      batchSize = isLargerModel ? 40 : 60;
+      batchSize = isLargerModel ? 20 : 60;
     }
     const allEmbeddings: number[][] = [];
 
@@ -218,6 +218,72 @@ export async function processYouTubeTitles(
   }
 }
 
+// Chunked processing for very large datasets (800+ videos)
+export async function processYouTubeTitlesInChunks(
+  titles: string[],
+  options?: {
+    config?: Partial<SentenceTransformerConfig>;
+    onProgress?: (chunk: number, totalChunks: number, message: string) => void;
+    chunkSize?: number;
+  }
+): Promise<{
+  embeddings: number[][];
+  model: string;
+  dimensions: number;
+}> {
+  const config = options?.config;
+  const onProgress = options?.onProgress;
+  const chunkSize = options?.chunkSize || (titles.length > 800 ? 75 : 150);
+  const model = config?.model || 'BAAI/bge-small-en-v1.5';
+  const dimensions = config?.dimensions || 384;
+
+  console.log(`Processing ${titles.length} titles in chunks of ${chunkSize} for BGE Large compatibility`);
+
+  const totalChunks = Math.ceil(titles.length / chunkSize);
+  const allEmbeddings: number[][] = [];
+
+  for (let i = 0; i < totalChunks; i++) {
+    const startIdx = i * chunkSize;
+    const endIdx = Math.min(startIdx + chunkSize, titles.length);
+    const chunk = titles.slice(startIdx, endIdx);
+
+    if (onProgress) {
+      onProgress(i + 1, totalChunks, `Processing chunk ${i + 1}/${totalChunks}: ${chunk.length} videos (${startIdx + 1}-${endIdx})`);
+    }
+
+    try {
+      const chunkResult = await processYouTubeTitlesWithProgress(chunk, {
+        config,
+        onProgress: (batch, totalBatches, message) => {
+          if (onProgress) {
+            onProgress(i + 1, totalChunks, `Chunk ${i + 1}/${totalChunks} - ${message}`);
+          }
+        }
+      });
+
+      allEmbeddings.push(...chunkResult.embeddings);
+
+      // Longer pause between chunks for BGE Large
+      if (i < totalChunks - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second pause between chunks
+      }
+
+    } catch (error) {
+      console.error(`Failed to process chunk ${i + 1}:`, error);
+      if (onProgress) {
+        onProgress(i + 1, totalChunks, `ERROR in chunk ${i + 1}: ${error}`);
+      }
+      throw new Error(`Chunk processing failed at chunk ${i + 1}: ${error}`);
+    }
+  }
+
+  return {
+    embeddings: allEmbeddings,
+    model,
+    dimensions
+  };
+}
+
 // Enhanced version with progress callback support
 export async function processYouTubeTitlesWithProgress(
   titles: string[],
@@ -241,17 +307,17 @@ export async function processYouTubeTitlesWithProgress(
     // Batch process if needed (API might have limits) - much smaller batches for reliability
     const isLargerModel = model.includes('bge-base') || model.includes('bge-large');
 
-    // Use smaller batches for large datasets and larger models to prevent timeouts
+    // Use much more aggressive batch sizes for BGE Large to prevent timeouts
     let batchSize;
     if (titles.length > 500) {
-      // For large datasets (500+ videos), use very small batches
-      batchSize = isLargerModel ? 15 : 25;
+      // For large datasets (500+ videos), use tiny batches for BGE Large
+      batchSize = isLargerModel ? 8 : 25;
     } else if (titles.length > 200) {
       // For medium datasets (200-500 videos), use small batches
-      batchSize = isLargerModel ? 25 : 40;
+      batchSize = isLargerModel ? 12 : 40;
     } else {
       // For small datasets (<200 videos), use normal batches
-      batchSize = isLargerModel ? 40 : 60;
+      batchSize = isLargerModel ? 20 : 60;
     }
     const totalBatches = Math.ceil(titles.length / batchSize);
     const allEmbeddings: number[][] = [];

@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { performClustering, generateClusterSummaries } from '../../../utils/clustering';
 import { Word2VecConfig, prepareDataForClustering } from '../../../utils/word2vec';
-import { processYouTubeTitlesWithProgress } from '../../../utils/sentence-transformers';
+import { processYouTubeTitlesWithProgress, processYouTubeTitlesInChunks } from '../../../utils/sentence-transformers';
+import { processYouTubeTitlesWithGoogle } from '../../../utils/google-embeddings';
 import { kmeans } from 'ml-kmeans';
 import { analyzeOptimalK } from '../../../utils/k-optimization';
 import { detectLanguage } from '../../../utils/language-detection';
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
       (async () => {
         try {
           const body = await request.json();
-          const { titles, word2vecConfig, clusteringConfig, huggingFaceApiKey } = body;
+          const { titles, word2vecConfig, clusteringConfig, huggingFaceApiKey, googleApiKey } = body;
 
           console.log(`[START] Clustering request received:`);
           console.log(`[START] - Titles: ${titles?.length || 0}`);
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
           // Use English-only titles for clustering
           const titlesToCluster = englishTitles;
 
-          // Check if using Sentence Transformers
+          // Check embedding approach
           console.log(`[EMBEDDING] Approach: ${word2vecConfig.approach}, Titles to cluster: ${titlesToCluster.length}`);
           if (word2vecConfig.approach === 'sentence-transformers') {
             console.log(`[EMBEDDING] Using sentence transformers with model: ${word2vecConfig.model}`);
@@ -111,17 +112,40 @@ export async function POST(request: NextRequest) {
 
             let embeddings;
             try {
-              // Get embeddings with progress updates
-              const embeddingResult = await processYouTubeTitlesWithProgress(titlesToCluster, {
-                config: {
-                  model: word2vecConfig.model,
-                  apiKey: huggingFaceApiKey
-                },
-                onProgress: (batch: number, totalBatches: number, message: string) => {
-                  const batchProgress = 20 + (batch / totalBatches) * 35; // 20% to 55%
-                  sendProgress('embeddings', message, batchProgress);
-                }
-              });
+              // Use chunked processing for large datasets with BGE Large
+              const useLargeModel = word2vecConfig.model.includes('bge-large');
+              const useChunkedProcessing = titlesToCluster.length > 500 && useLargeModel;
+
+              let embeddingResult;
+              if (useChunkedProcessing) {
+                console.log(`[CHUNKED] Using chunked processing for ${titlesToCluster.length} videos with BGE Large`);
+                sendProgress('embeddings', `Using chunked processing for BGE Large model (${titlesToCluster.length} videos)...`, 15);
+
+                embeddingResult = await processYouTubeTitlesInChunks(titlesToCluster, {
+                  config: {
+                    model: word2vecConfig.model,
+                    apiKey: huggingFaceApiKey
+                  },
+                  chunkSize: 75, // Small chunks for BGE Large
+                  onProgress: (chunk: number, totalChunks: number, message: string) => {
+                    const chunkProgress = 20 + (chunk / totalChunks) * 35; // 20% to 55%
+                    sendProgress('embeddings', `Chunk ${chunk}/${totalChunks}: ${message}`, chunkProgress);
+                  }
+                });
+              } else {
+                // Regular processing for smaller datasets or non-Large models
+                embeddingResult = await processYouTubeTitlesWithProgress(titlesToCluster, {
+                  config: {
+                    model: word2vecConfig.model,
+                    apiKey: huggingFaceApiKey
+                  },
+                  onProgress: (batch: number, totalBatches: number, message: string) => {
+                    const batchProgress = 20 + (batch / totalBatches) * 35; // 20% to 55%
+                    sendProgress('embeddings', message, batchProgress);
+                  }
+                });
+              }
+
               embeddings = embeddingResult.embeddings;
 
               if (!embeddings || embeddings.length === 0) {
@@ -190,6 +214,129 @@ export async function POST(request: NextRequest) {
               const maxK = Math.max(10, Math.floor(embeddings.length * 0.1));
               kOptimizationAnalysis = analyzeOptimalK(embeddings, maxK, (k, maxK, message) => {
                 // Calculate progress from 62% to 68% based on current K
+                const progress = 62 + ((k - 2) / (maxK - 2)) * 6;
+                sendProgress('k-optimization', message, Math.round(progress));
+              });
+              finalK = kOptimizationAnalysis.optimalK;
+
+              sendProgress('k-optimization', `Optimal K determined: ${finalK} clusters (tested K=2 to K=${maxK})`, 68);
+            }
+
+            sendProgress('clustering', `Initializing K-means with ${finalK} clusters...`, 70);
+
+            // Perform K-means directly on the embeddings
+            const kmeansResult = kmeans(embeddings, finalK, {
+              initialization: clusteringConfig.algorithm === 'kmeans++' ? 'kmeans++' : 'random',
+              maxIterations: 100,
+              tolerance: 1e-4
+            });
+
+            sendProgress('clustering', 'Computing cluster assignments...', 80);
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            sendProgress('clustering', 'Calculating cluster centroids...', 85);
+
+            // Structure results similar to performClustering output
+            const clusters: any[][] = Array.from({ length: finalK }, () => []);
+            let totalInertia = 0;
+
+            kmeansResult.clusters.forEach((clusterId: number, index: number) => {
+              const distance = Math.sqrt(
+                embeddings[index].reduce((sum, val, i) => {
+                  const diff = val - kmeansResult.centroids[clusterId][i];
+                  return sum + diff * diff;
+                }, 0)
+              );
+
+              totalInertia += distance * distance;
+
+              clusters[clusterId].push({
+                clusterId,
+                title: titlesToCluster[index],
+                vector: embeddings[index],
+                distance
+              });
+            });
+
+            results = {
+              clusters,
+              centroids: kmeansResult.centroids,
+              inertia: totalInertia,
+              iterations: kmeansResult.iterations,
+              convergenceTime: 0,
+              statistics: {
+                clusterSizes: clusters.map(c => c.length),
+                avgCoverage: 100,
+                totalVideos: titlesToCluster.length,
+                processingTime: 0
+              }
+            };
+
+            sendProgress('post-processing', 'Generating cluster summaries...', 90);
+
+            // Create processed texts for visualization
+            processedTexts = titlesToCluster.map((title, index) => ({
+              original: title,
+              tokens: title.split(' '),
+              vector: embeddings[index],
+              coverage: 100
+            }));
+
+            // Generate summaries
+            summaries = generateClusterSummaries(results, processedTexts);
+
+            sendProgress('post-processing', 'Extracting keywords and insights...', 95);
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+          } else if (word2vecConfig.approach === 'google-gemini') {
+            console.log(`[EMBEDDING] Using Google Gemini embeddings with 3072 dimensions`);
+            sendProgress('embeddings', `Connecting to Google Gemini API for ${titlesToCluster.length} English videos...`, 15);
+
+            let embeddings;
+            try {
+              // Use Google Gemini embeddings - much faster and higher quality than BGE Large!
+              const embeddingResult = await processYouTubeTitlesWithGoogle(titlesToCluster, {
+                apiKey: googleApiKey,
+                model: 'models/text-embedding-004',
+                dimensions: 3072,
+                taskType: 'SEMANTIC_SIMILARITY'
+              }, (batch: number, totalBatches: number, message: string) => {
+                const batchProgress = 20 + (batch / totalBatches) * 35; // 20% to 55%
+                sendProgress('embeddings', message, batchProgress);
+              });
+
+              embeddings = embeddingResult.embeddings;
+
+              if (!embeddings || embeddings.length === 0) {
+                throw new Error('No embeddings were generated');
+              }
+
+              sendProgress('embeddings', `Successfully generated ${embeddings.length} Google embeddings with 3072 dimensions`, 56);
+            } catch (embeddingError: any) {
+              console.error('Google embedding generation failed:', embeddingError);
+              sendError(`Failed to generate Google embeddings: ${embeddingError.message || 'Unknown error'}. Please check your Google API key and try again.`);
+              return;
+            }
+
+            console.log(`[EMBEDDING] Got ${embeddings.length} Google embeddings (3072D), starting clustering`);
+            sendProgress('embeddings', 'Validating Google embedding dimensions...', 57);
+
+            const actualDim = embeddings[0].length;
+            if (actualDim !== 3072) {
+              console.warn(`Warning: Expected 3072 dimensions for Google Gemini, got ${actualDim}`);
+            }
+
+            sendProgress('embeddings', `Quality check: ${actualDim}D vectors from Google Gemini`, 60);
+
+            // Analyze optimal K if requested
+            let finalK = clusteringConfig.k;
+
+            if (clusteringConfig.k === -1) {
+              console.log(`[K-OPT] Starting K optimization for ${embeddings.length} embeddings`);
+              sendProgress('k-optimization', 'Analyzing optimal K using Elbow Method...', 62);
+
+              const maxK = Math.max(10, Math.floor(embeddings.length * 0.1));
+              kOptimizationAnalysis = analyzeOptimalK(embeddings, maxK, (k, maxK, message) => {
                 const progress = 62 + ((k - 2) / (maxK - 2)) * 6;
                 sendProgress('k-optimization', message, Math.round(progress));
               });

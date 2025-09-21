@@ -19,11 +19,13 @@ export default function Home() {
   const [inputText, setInputText] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [huggingFaceApiKey, setHuggingFaceApiKey] = useState('');
+  const [googleApiKey, setGoogleApiKey] = useState('');
   const [videos, setVideos] = useState<VideoData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [showHuggingFaceApiKey, setShowHuggingFaceApiKey] = useState(false);
+  const [showGoogleApiKey, setShowGoogleApiKey] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [progress, setProgress] = useState<{current: number, total: number} | null>(null);
   const [appendMode, setAppendMode] = useState(false);
@@ -93,6 +95,19 @@ export default function Home() {
     current: 0,
     total: 0
   });
+
+  // Load saved API keys from localStorage on component mount
+  useEffect(() => {
+    const savedHuggingFaceKey = localStorage.getItem('huggingface_api_key');
+    const savedGoogleKey = localStorage.getItem('google_api_key');
+
+    if (savedHuggingFaceKey) {
+      setHuggingFaceApiKey(savedHuggingFaceKey);
+    }
+    if (savedGoogleKey) {
+      setGoogleApiKey(savedGoogleKey);
+    }
+  }, []);
 
   const extractVideoId = (url: string): string | null => {
     const patterns = [
@@ -523,7 +538,8 @@ export default function Home() {
           titles,
           word2vecConfig,
           clusteringConfig,
-          huggingFaceApiKey: huggingFaceApiKey.trim() || undefined
+          huggingFaceApiKey: huggingFaceApiKey.trim() || undefined,
+          googleApiKey: googleApiKey.trim() || undefined
         }),
       });
 
@@ -787,6 +803,8 @@ export default function Home() {
           embedding: embedding,
           embedding_model: clusteringConfig.word2vecApproach === 'sentence-transformers'
             ? clusteringConfig.sentenceTransformerModel
+            : clusteringConfig.word2vecApproach === 'google-gemini'
+            ? 'text-embedding-004'
             : 'word2vec',
           embedding_dimensions: embedding.length || 0,
           embedding_generated_at: new Date().toISOString(),
@@ -822,6 +840,8 @@ export default function Home() {
         clusterCount: clusteringResults.clusters.length,
         embeddingModel: clusteringConfig.word2vecApproach === 'sentence-transformers'
           ? clusteringConfig.sentenceTransformerModel
+          : clusteringConfig.word2vecApproach === 'google-gemini'
+          ? 'text-embedding-004'
           : 'word2vec',
         clusteringAlgorithm: clusteringConfig.algorithm,
         clusteringResults,
@@ -1901,6 +1921,69 @@ https://www.youtube.com/shorts/abc123"
         </div>
       </div>
 
+      {/* Google API Key */}
+      <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-2xl">✨</span>
+          <h4 className="text-lg font-semibold text-white">Google Gemini API Configuration</h4>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-3">
+              🔑 Google API Key (Required for Google Gemini)
+            </label>
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <input
+                  type={showGoogleApiKey ? "text" : "password"}
+                  className="w-full px-5 py-4 bg-black/50 backdrop-blur-md border border-gray-800 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-300"
+                  placeholder="AIzaSy..."
+                  value={googleApiKey}
+                  onChange={(e) => setGoogleApiKey(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={() => setShowGoogleApiKey(!showGoogleApiKey)}
+                className="px-4 py-4 bg-gray-800 hover:bg-gray-700 text-white rounded-2xl transition-all duration-300 border border-gray-700"
+              >
+                {showGoogleApiKey ? '🙈' : '👁️'}
+              </button>
+              <button
+                onClick={() => {
+                  if (googleApiKey.trim()) {
+                    localStorage.setItem('google_api_key', googleApiKey.trim());
+                  } else {
+                    localStorage.removeItem('google_api_key');
+                  }
+                  alert(googleApiKey.trim() ? 'Google API key saved!' : 'Google API key removed!');
+                }}
+                className="px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-2xl transition-all duration-300 font-medium"
+              >
+                💾 Save
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-green-950/30 border border-green-800/50 rounded-xl p-4">
+            <div className="text-sm text-green-300">
+              <div className="flex items-start gap-2 mb-2">
+                <span>🚀</span>
+                <div>
+                  <strong>Google Gemini Embeddings:</strong>
+                  <ul className="mt-1 space-y-1 text-xs text-green-200">
+                    <li>• <strong>3072 dimensions</strong> - Highest quality embeddings available</li>
+                    <li>• <strong>Fast processing</strong> - Up to 100 texts per batch</li>
+                    <li>• <strong>Superior clustering</strong> - Better semantic understanding than BGE Large</li>
+                    <li>• <strong>Get API Key:</strong> Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline hover:text-green-100">Google AI Studio</a> → Create API Key</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Clustering Controls */}
       <div className="backdrop-blur-xl bg-black/30 rounded-2xl border border-gray-800 p-6">
         <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -1969,10 +2052,19 @@ https://www.youtube.com/shorts/abc123"
             </label>
             <select
               value={clusteringConfig.word2vecApproach}
-              onChange={(e) => setClusteringConfig(prev => ({ ...prev, word2vecApproach: e.target.value }))}
+              onChange={(e) => {
+                const approach = e.target.value;
+                setClusteringConfig(prev => ({
+                  ...prev,
+                  word2vecApproach: approach,
+                  // Update dimensions based on approach
+                  dimensions: approach === 'google-gemini' ? 3072 : prev.dimensions
+                }));
+              }}
               className="w-full px-4 py-3 bg-black/50 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
             >
               <option value="sentence-transformers">🚀 Sentence Transformers (Best Quality)</option>
+              <option value="google-gemini">✨ Google Gemini Embeddings (3072D - Highest Quality)</option>
               <option value="pretrained">Pre-trained Word2Vec (Fast)</option>
               <option value="custom">Train on YouTube Data (Not Implemented)</option>
               <option value="hybrid">Hybrid Approach (Not Implemented)</option>
@@ -1984,7 +2076,8 @@ https://www.youtube.com/shorts/abc123"
         <div className="mt-6 p-4 bg-gradient-to-r from-indigo-950/20 to-purple-950/20 border border-indigo-800/30 rounded-xl">
           <h5 className="text-md font-semibold text-white mb-3 flex items-center gap-2">
             <span>🧠</span>
-            {clusteringConfig.word2vecApproach === 'sentence-transformers' ? 'Sentence Transformer' : 'Word2Vec'} Configuration
+            {clusteringConfig.word2vecApproach === 'sentence-transformers' ? 'Sentence Transformer' :
+             clusteringConfig.word2vecApproach === 'google-gemini' ? 'Google Gemini' : 'Word2Vec'} Configuration
           </h5>
 
           {clusteringConfig.word2vecApproach === 'sentence-transformers' ? (
@@ -2026,6 +2119,17 @@ https://www.youtube.com/shorts/abc123"
               <div className="text-xs text-gray-400 p-2 bg-black/20 rounded-lg">
                 <strong>✨ Advantages:</strong> Understands full sentence context, pre-trained on millions of texts,
                 much better semantic understanding, handles phrases like "Apple stock" vs "Apple fruit" differently.
+              </div>
+            </>
+          ) : clusteringConfig.word2vecApproach === 'google-gemini' ? (
+            <>
+              <div className="text-xs text-green-400 p-3 bg-green-950/30 rounded-lg mb-4 border border-green-800/30">
+                <strong>🚀 Google Gemini Embeddings:</strong> State-of-the-art 3072-dimensional embeddings from Google's Gemini model.
+                Provides the highest quality semantic understanding with superior clustering accuracy.
+              </div>
+
+              <div className="text-sm text-gray-300 mb-3">
+                <strong>Model:</strong> text-embedding-004 (3072 dimensions)
               </div>
             </>
           ) : (
@@ -2072,7 +2176,7 @@ https://www.youtube.com/shorts/abc123"
           )}
         </div>
 
-        {clusteringConfig.word2vecApproach !== 'sentence-transformers' && (
+        {clusteringConfig.word2vecApproach !== 'sentence-transformers' && clusteringConfig.word2vecApproach !== 'google-gemini' && (
           <div className="mt-6">
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Text Processing Options
