@@ -2075,7 +2075,15 @@ https://www.youtube.com/shorts/abc123"
                           </button>
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                          Video
+                          <button
+                            onClick={() => handleExplorerSort('url')}
+                            className="flex items-center gap-1 hover:text-white transition-colors"
+                          >
+                            Video
+                            {explorerSort.field === 'url' && (
+                              <span>{explorerSort.direction === 'desc' ? '↓' : '↑'}</span>
+                            )}
+                          </button>
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                           <button
@@ -2100,7 +2108,15 @@ https://www.youtube.com/shorts/abc123"
                           </button>
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider text-center">
-                          Embeddings
+                          <button
+                            onClick={() => handleExplorerSort('embedding_dimensions')}
+                            className="flex items-center gap-1 hover:text-white transition-colors mx-auto"
+                          >
+                            Embeddings
+                            {explorerSort.field === 'embedding_dimensions' && (
+                              <span>{explorerSort.direction === 'desc' ? '↓' : '↑'}</span>
+                            )}
+                          </button>
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                           <button
