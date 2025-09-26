@@ -1071,7 +1071,7 @@ export default function Home() {
   };
 
   // Load explorer data from database
-  const loadExplorerData = async (offset: number = 0, search: string = '', sort: string = 'added_at', sortDirection: string = 'desc', customItemsPerPage?: number) => {
+  const loadExplorerData = async (offset: number = 0, search: string = '', sort: string = 'added_at', sortDirection: string = 'desc', customItemsPerPage?: number, appendData: boolean = false) => {
     if (!isConnected) {
       setExplorerError('Please connect to your ClickHouse database first in the Database tab.');
       return;
@@ -1101,10 +1101,10 @@ export default function Home() {
 
       const result = await response.json();
       if (result.success) {
-        if (offset === 0) {
-          setExplorerData(result.videos);
-        } else {
+        if (appendData) {
           setExplorerData(prev => [...prev, ...result.videos]);
+        } else {
+          setExplorerData(result.videos);
         }
 
         // Update pagination state
@@ -1145,7 +1145,7 @@ export default function Home() {
   // Load more records (append)
   const loadMoreExplorerData = () => {
     const currentOffset = explorerData.length;
-    loadExplorerData(currentOffset, explorerFilter, explorerSort.field, explorerSort.direction);
+    loadExplorerData(currentOffset, explorerFilter, explorerSort.field, explorerSort.direction, undefined, true);
   };
 
   // Handle sort in explorer
