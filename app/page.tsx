@@ -1161,6 +1161,45 @@ export default function Home() {
   };
 
   // Handle language detection for videos without language data
+  const handleClearLanguages = async () => {
+    if (!isConnected) {
+      setExplorerError('Please connect to your ClickHouse database first.');
+      return;
+    }
+
+    if (!confirm('Are you sure you want to clear all language data? This will remove all detected languages from the database.')) {
+      return;
+    }
+
+    setLanguageDetectionLoading(true);
+    setLanguageDetectionProgress('Clearing language data...');
+
+    try {
+      const response = await axios.post('/api/detect-language', {
+        host: clickhouseConfig.host,
+        username: clickhouseConfig.username,
+        password: clickhouseConfig.password,
+        database: clickhouseConfig.database,
+        action: 'clear'
+      });
+
+      if (response.data.success) {
+        setLanguageDetectionProgress('Language data cleared successfully!');
+        loadExplorerData();
+
+        setTimeout(() => {
+          setLanguageDetectionLoading(false);
+          setLanguageDetectionProgress('');
+        }, 1500);
+      }
+    } catch (error: any) {
+      console.error('Clear languages failed:', error);
+      setExplorerError(`Failed to clear languages: ${error.response?.data?.error || error.message}`);
+      setLanguageDetectionLoading(false);
+      setLanguageDetectionProgress('');
+    }
+  };
+
   const handleLanguageDetection = async () => {
     if (!isConnected) {
       setExplorerError('Please connect to your ClickHouse database first.');
@@ -1168,32 +1207,29 @@ export default function Home() {
     }
 
     setLanguageDetectionLoading(true);
-    setLanguageDetectionProgress('Fetching videos without language data...');
+    setLanguageDetectionProgress('Starting language detection...');
 
     try {
-      // This is a placeholder for now - in the future, we'll implement actual language detection
-      // For now, we'll just simulate the process
-      setLanguageDetectionProgress('Analyzing video titles...');
+      const response = await axios.post('/api/detect-language', {
+        host: clickhouseConfig.host,
+        username: clickhouseConfig.username,
+        password: clickhouseConfig.password,
+        database: clickhouseConfig.database,
+        action: 'detect'
+      });
 
-      // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (response.data.success) {
+        setLanguageDetectionProgress(`Completed! Processed ${response.data.processed} videos.`);
+        loadExplorerData();
 
-      setLanguageDetectionProgress('Updating database...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      setLanguageDetectionProgress('Language detection completed!');
-
-      // Refresh the Explorer data to show updated language info
-      loadExplorerData();
-
-      setTimeout(() => {
-        setLanguageDetectionLoading(false);
-        setLanguageDetectionProgress('');
-      }, 1000);
-
+        setTimeout(() => {
+          setLanguageDetectionLoading(false);
+          setLanguageDetectionProgress('');
+        }, 2000);
+      }
     } catch (error: any) {
       console.error('Language detection failed:', error);
-      setExplorerError(`Language detection failed: ${error.message}`);
+      setExplorerError(`Language detection failed: ${error.response?.data?.error || error.message}`);
       setLanguageDetectionLoading(false);
       setLanguageDetectionProgress('');
     }
@@ -2066,13 +2102,22 @@ https://www.youtube.com/shorts/abc123"
                         )}
                       </div>
                     ) : (
-                      <button
-                        onClick={handleLanguageDetection}
-                        disabled={!isConnected}
-                        className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
-                      >
-                        🚀 Detect Languages
-                      </button>
+                      <div className="space-y-2">
+                        <button
+                          onClick={handleClearLanguages}
+                          disabled={!isConnected}
+                          className="w-full px-3 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                        >
+                          🗑️ Clear All Languages
+                        </button>
+                        <button
+                          onClick={handleLanguageDetection}
+                          disabled={!isConnected}
+                          className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                        >
+                          🚀 Detect Languages
+                        </button>
+                      </div>
                     )}
                   </div>
 
