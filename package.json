@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@clickhouse/client": "^1.12.1",
     "@types/natural": "^5.1.5",
     "@types/three": "^0.180.0",
     "axios": "^1.12.1",
