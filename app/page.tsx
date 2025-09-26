@@ -1071,7 +1071,7 @@ export default function Home() {
   };
 
   // Load explorer data from database
-  const loadExplorerData = async (offset: number = 0, search: string = '', sort: string = 'added_at', sortDirection: string = 'desc') => {
+  const loadExplorerData = async (offset: number = 0, search: string = '', sort: string = 'added_at', sortDirection: string = 'desc', customItemsPerPage?: number) => {
     if (!isConnected) {
       setExplorerError('Please connect to your ClickHouse database first in the Database tab.');
       return;
@@ -1090,7 +1090,7 @@ export default function Home() {
           action: 'get_all_videos',
           config: clickhouseConfig,
           data: {
-            limit: explorerPagination.itemsPerPage,
+            limit: customItemsPerPage || explorerPagination.itemsPerPage,
             offset,
             search,
             sort,
@@ -1108,12 +1108,13 @@ export default function Home() {
         }
 
         // Update pagination state
-        const currentPage = Math.floor(offset / explorerPagination.itemsPerPage) + 1;
-        const totalPages = Math.ceil(result.total / explorerPagination.itemsPerPage);
+        const effectiveItemsPerPage = customItemsPerPage || explorerPagination.itemsPerPage;
+        const currentPage = Math.floor(offset / effectiveItemsPerPage) + 1;
+        const totalPages = Math.ceil(result.total / effectiveItemsPerPage);
 
         setExplorerPagination({
           currentPage,
-          itemsPerPage: explorerPagination.itemsPerPage,
+          itemsPerPage: effectiveItemsPerPage,
           totalItems: result.total,
           totalPages,
           hasMore: result.hasMore
@@ -2206,7 +2207,7 @@ https://www.youtube.com/shorts/abc123"
                             itemsPerPage: newItemsPerPage,
                             currentPage: 1
                           }));
-                          loadExplorerData(0, explorerFilter, explorerSort.field, explorerSort.direction);
+                          loadExplorerData(0, explorerFilter, explorerSort.field, explorerSort.direction, newItemsPerPage);
                         }}
                         className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm"
                       >
