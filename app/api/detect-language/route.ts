@@ -50,51 +50,80 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const batchSize = 100;
-      let processed = 0;
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          const sendProgress = (processed: number, total: number, message: string) => {
+            const data = JSON.stringify({ processed, total, message, percentage: Math.round((processed / total) * 100) });
+            controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+          };
 
-      while (processed < totalVideos) {
-        const result = await client.query({
-          query: `
-            SELECT id, title
-            FROM ${database || 'default'}.videos
-            WHERE language_detected IS NULL OR language_detected = ''
-            LIMIT ${batchSize}
-          `
-        });
+          try {
+            const batchSize = 100;
+            let processed = 0;
 
-        const data = await result.json() as any;
-        const videos = data.data;
+            sendProgress(0, totalVideos, 'Starting language detection...');
 
-        if (videos.length === 0) break;
+            while (processed < totalVideos) {
+              const result = await client.query({
+                query: `
+                  SELECT id, title
+                  FROM ${database || 'default'}.videos
+                  WHERE language_detected IS NULL OR language_detected = ''
+                  LIMIT ${batchSize}
+                `
+              });
 
-        const titles = videos.map((v: any) => v.title);
-        const detectionResults = detectLanguagesBatch(titles);
+              const data = await result.json() as any;
+              const videos = data.data;
 
-        for (let i = 0; i < videos.length; i++) {
-          const video = videos[i];
-          const detection = detectionResults[i];
+              if (videos.length === 0) break;
 
-          await client.command({
-            query: `
-              ALTER TABLE ${database || 'default'}.videos
-              UPDATE language_detected = '${detection.language}'
-              WHERE id = '${video.id}'
-            `,
-            clickhouse_settings: {
-              wait_end_of_query: 1
+              sendProgress(processed, totalVideos, `Processing batch ${Math.floor(processed / batchSize) + 1}...`);
+
+              const titles = videos.map((v: any) => v.title);
+              const detectionResults = detectLanguagesBatch(titles);
+
+              for (let i = 0; i < videos.length; i++) {
+                const video = videos[i];
+                const detection = detectionResults[i];
+
+                await client.command({
+                  query: `
+                    ALTER TABLE ${database || 'default'}.videos
+                    UPDATE language_detected = '${detection.language}'
+                    WHERE id = '${video.id}'
+                  `,
+                  clickhouse_settings: {
+                    wait_end_of_query: 1
+                  }
+                });
+
+                processed++;
+
+                if (processed % 10 === 0 || processed === totalVideos) {
+                  sendProgress(processed, totalVideos, `Processed ${processed} of ${totalVideos} videos...`);
+                }
+              }
             }
-          });
+
+            sendProgress(totalVideos, totalVideos, 'Language detection completed!');
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, processed, total: totalVideos })}\n\n`));
+            controller.close();
+          } catch (error: any) {
+            const errorData = JSON.stringify({ error: error.message });
+            controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
+            controller.close();
+          }
         }
+      });
 
-        processed += videos.length;
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: 'Language detection completed',
-        processed,
-        total: totalVideos
+      return new NextResponse(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
       });
     }
 

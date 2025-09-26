@@ -1210,26 +1210,56 @@ export default function Home() {
     setLanguageDetectionProgress('Starting language detection...');
 
     try {
-      const response = await axios.post('/api/detect-language', {
-        host: clickhouseConfig.host,
-        username: clickhouseConfig.username,
-        password: clickhouseConfig.password,
-        database: clickhouseConfig.database,
-        action: 'detect'
+      const response = await fetch('/api/detect-language', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          host: clickhouseConfig.host,
+          username: clickhouseConfig.username,
+          password: clickhouseConfig.password,
+          database: clickhouseConfig.database,
+          action: 'detect'
+        }),
       });
 
-      if (response.data.success) {
-        setLanguageDetectionProgress(`Completed! Processed ${response.data.processed} videos.`);
-        loadExplorerData();
+      if (!response.body) {
+        throw new Error('No response body');
+      }
 
-        setTimeout(() => {
-          setLanguageDetectionLoading(false);
-          setLanguageDetectionProgress('');
-        }, 2000);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter(line => line.trim().startsWith('data:'));
+
+        for (const line of lines) {
+          const data = JSON.parse(line.replace('data:', '').trim());
+
+          if (data.error) {
+            throw new Error(data.error);
+          }
+
+          if (data.done) {
+            setLanguageDetectionProgress(`Completed! Processed ${data.processed} of ${data.total} videos.`);
+            loadExplorerData();
+            setTimeout(() => {
+              setLanguageDetectionLoading(false);
+              setLanguageDetectionProgress('');
+            }, 2000);
+          } else if (data.message) {
+            setLanguageDetectionProgress(`${data.message} (${data.percentage}%)`);
+          }
+        }
       }
     } catch (error: any) {
       console.error('Language detection failed:', error);
-      setExplorerError(`Language detection failed: ${error.response?.data?.error || error.message}`);
+      setExplorerError(`Language detection failed: ${error.message}`);
       setLanguageDetectionLoading(false);
       setLanguageDetectionProgress('');
     }
