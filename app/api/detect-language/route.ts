@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'clear') {
       await client.command({
-        query: `ALTER TABLE youtube_videos UPDATE language_detected = NULL WHERE 1 = 1`,
+        query: `ALTER TABLE ${database || 'default'}.videos UPDATE language_detected = NULL WHERE 1 = 1`,
         clickhouse_settings: {
           wait_end_of_query: 1
         }
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'detect') {
       const countResult = await client.query({
-        query: `SELECT count() as total FROM youtube_videos WHERE language_detected IS NULL OR language_detected = ''`
+        query: `SELECT count() as total FROM ${database || 'default'}.videos WHERE language_detected IS NULL OR language_detected = ''`
       });
       const countData = await countResult.json() as any;
       const totalVideos = countData.data[0]?.total || 0;
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
         const result = await client.query({
           query: `
             SELECT video_id, title
-            FROM youtube_videos
+            FROM ${database || 'default'}.videos
             WHERE language_detected IS NULL OR language_detected = ''
             LIMIT ${batchSize}
           `
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
           await client.command({
             query: `
-              ALTER TABLE youtube_videos
+              ALTER TABLE ${database || 'default'}.videos
               UPDATE language_detected = '${detection.language}'
               WHERE video_id = '${video.video_id}'
             `,
