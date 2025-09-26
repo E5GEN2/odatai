@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
               sendProgress(processed, totalVideos, `Processing batch ${Math.floor(processed / batchSize) + 1}...`);
 
               const titles = videos.map((v: any) => v.title);
-              const detectionResults = detectLanguagesBatch(titles);
+              const detectionResults = await detectLanguagesBatch(titles);
 
               for (let i = 0; i < videos.length; i++) {
                 const video = videos[i];
