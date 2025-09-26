@@ -104,6 +104,13 @@ export default function Home() {
   const [explorerError, setExplorerError] = useState('');
   const [explorerFilter, setExplorerFilter] = useState('');
   const [explorerSort, setExplorerSort] = useState<{field: string, direction: 'asc' | 'desc'}>({field: 'added_at', direction: 'desc'});
+  const [explorerPagination, setExplorerPagination] = useState({
+    currentPage: 1,
+    itemsPerPage: 50,
+    totalItems: 0,
+    totalPages: 0,
+    hasMore: false
+  });
 
   // Load saved API keys from localStorage on component mount
   useEffect(() => {
@@ -1083,7 +1090,7 @@ export default function Home() {
           action: 'get_all_videos',
           config: clickhouseConfig,
           data: {
-            limit: 50,
+            limit: explorerPagination.itemsPerPage,
             offset,
             search,
             sort,
@@ -1099,6 +1106,18 @@ export default function Home() {
         } else {
           setExplorerData(prev => [...prev, ...result.videos]);
         }
+
+        // Update pagination state
+        const currentPage = Math.floor(offset / explorerPagination.itemsPerPage) + 1;
+        const totalPages = Math.ceil(result.total / explorerPagination.itemsPerPage);
+
+        setExplorerPagination({
+          currentPage,
+          itemsPerPage: explorerPagination.itemsPerPage,
+          totalItems: result.total,
+          totalPages,
+          hasMore: result.hasMore
+        });
       } else {
         setExplorerError(result.error || 'Failed to load data');
       }
@@ -1112,7 +1131,20 @@ export default function Home() {
   // Handle search in explorer
   const handleExplorerSearch = (searchTerm: string) => {
     setExplorerFilter(searchTerm);
+    setExplorerPagination(prev => ({ ...prev, currentPage: 1 }));
     loadExplorerData(0, searchTerm, explorerSort.field, explorerSort.direction);
+  };
+
+  // Handle page navigation
+  const goToExplorerPage = (page: number) => {
+    const offset = (page - 1) * explorerPagination.itemsPerPage;
+    loadExplorerData(offset, explorerFilter, explorerSort.field, explorerSort.direction);
+  };
+
+  // Load more records (append)
+  const loadMoreExplorerData = () => {
+    const currentOffset = explorerData.length;
+    loadExplorerData(currentOffset, explorerFilter, explorerSort.field, explorerSort.direction);
   };
 
   // Handle sort in explorer
@@ -2021,7 +2053,7 @@ https://www.youtube.com/shorts/abc123"
               <div className="bg-black/30 rounded-xl border border-gray-800 overflow-hidden">
                 <div className="p-4 bg-gray-900/50 border-b border-gray-700">
                   <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                    📊 Database Records ({explorerData.length} total)
+                    📊 Database Records ({explorerPagination.totalItems} total, showing {explorerData.length})
                   </h3>
                 </div>
 
@@ -2146,20 +2178,106 @@ https://www.youtube.com/shorts/abc123"
                 </div>
 
                 {/* Pagination Controls */}
-                <div className="p-4 bg-gray-900/50 border-t border-gray-700 flex justify-between items-center">
-                  <p className="text-sm text-gray-400">
-                    Showing {explorerData.length} records
-                  </p>
-                  <button
-                    onClick={() => {
-                      const currentOffset = explorerData.length;
-                      loadExplorerData(currentOffset, explorerFilter, explorerSort.field, explorerSort.direction);
-                    }}
-                    disabled={explorerLoading}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white text-sm rounded-lg transition-colors"
-                  >
-                    Load More
-                  </button>
+                <div className="p-4 bg-gray-900/50 border-t border-gray-700">
+                  {/* Pagination Info */}
+                  <div className="flex justify-between items-center mb-4">
+                    <p className="text-sm text-gray-400">
+                      Showing {explorerData.length} of {explorerPagination.totalItems} records
+                      {explorerPagination.totalPages > 1 && (
+                        <span className="ml-2">
+                          (Page {explorerPagination.currentPage} of {explorerPagination.totalPages})
+                        </span>
+                      )}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={loadMoreExplorerData}
+                        disabled={explorerLoading || !explorerPagination.hasMore}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                      >
+                        {explorerLoading ? 'Loading...' : 'Load More'}
+                      </button>
+                      <select
+                        value={explorerPagination.itemsPerPage}
+                        onChange={(e) => {
+                          const newItemsPerPage = parseInt(e.target.value);
+                          setExplorerPagination(prev => ({
+                            ...prev,
+                            itemsPerPage: newItemsPerPage,
+                            currentPage: 1
+                          }));
+                          loadExplorerData(0, explorerFilter, explorerSort.field, explorerSort.direction);
+                        }}
+                        className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm"
+                      >
+                        <option value={25}>25 per page</option>
+                        <option value={50}>50 per page</option>
+                        <option value={100}>100 per page</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Page Navigation */}
+                  {explorerPagination.totalPages > 1 && (
+                    <div className="flex justify-center items-center gap-2">
+                      <button
+                        onClick={() => goToExplorerPage(1)}
+                        disabled={explorerPagination.currentPage === 1 || explorerLoading}
+                        className="px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                      >
+                        First
+                      </button>
+                      <button
+                        onClick={() => goToExplorerPage(explorerPagination.currentPage - 1)}
+                        disabled={explorerPagination.currentPage === 1 || explorerLoading}
+                        className="px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                      >
+                        Previous
+                      </button>
+
+                      {/* Page Numbers */}
+                      <div className="flex gap-1">
+                        {(() => {
+                          const pages = [];
+                          const startPage = Math.max(1, explorerPagination.currentPage - 2);
+                          const endPage = Math.min(explorerPagination.totalPages, explorerPagination.currentPage + 2);
+
+                          for (let i = startPage; i <= endPage; i++) {
+                            pages.push(
+                              <button
+                                key={i}
+                                onClick={() => goToExplorerPage(i)}
+                                disabled={explorerLoading}
+                                className={`px-3 py-2 text-sm rounded-lg transition-colors ${
+                                  i === explorerPagination.currentPage
+                                    ? 'bg-cyan-600 text-white'
+                                    : 'bg-gray-700 hover:bg-gray-600 text-white'
+                                }`}
+                              >
+                                {i}
+                              </button>
+                            );
+                          }
+                          return pages;
+                        })()}
+                      </div>
+
+                      <button
+                        onClick={() => goToExplorerPage(explorerPagination.currentPage + 1)}
+                        disabled={explorerPagination.currentPage >= explorerPagination.totalPages || explorerLoading}
+                        className="px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                      >
+                        Next
+                      </button>
+                      <button
+                        onClick={() => goToExplorerPage(explorerPagination.totalPages)}
+                        disabled={explorerPagination.currentPage >= explorerPagination.totalPages || explorerLoading}
+                        className="px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                      >
+                        Last
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
