@@ -1,109 +1,159 @@
-// Improved language detection for YouTube titles
-// Returns proper 2-letter ISO 639-1 language codes
+// FastText Language Detection for YouTube titles
+// Uses Facebook AI's fastText for accurate language identification
 
-import { franc } from 'franc-min';
+import FastText from 'fasttext.js';
 
-// Map 3-letter ISO 639-3 codes from franc to 2-letter ISO 639-1 codes
-const ISO_CODE_MAP: Record<string, string> = {
-  'eng': 'en', // English
-  'rus': 'ru', // Russian
-  'spa': 'es', // Spanish
-  'fra': 'fr', // French
-  'deu': 'de', // German
-  'ita': 'it', // Italian
-  'por': 'pt', // Portuguese
-  'nld': 'nl', // Dutch
-  'pol': 'pl', // Polish
-  'ukr': 'uk', // Ukrainian
-  'jpn': 'ja', // Japanese
-  'kor': 'ko', // Korean
-  'cmn': 'zh', // Chinese (Mandarin)
-  'ara': 'ar', // Arabic
-  'tur': 'tr', // Turkish
-  'hin': 'hi', // Hindi
-  'vie': 'vi', // Vietnamese
-  'tha': 'th', // Thai
-  'ind': 'id', // Indonesian
-  'swe': 'sv', // Swedish
-  'dan': 'da', // Danish
-  'nor': 'no', // Norwegian
-  'fin': 'fi', // Finnish
-  'ces': 'cs', // Czech
-  'hun': 'hu', // Hungarian
-  'ron': 'ro', // Romanian
-  'bul': 'bg', // Bulgarian
-  'srp': 'sr', // Serbian
-  'hrv': 'hr', // Croatian
-  'slk': 'sk', // Slovak
-  'slv': 'sl', // Slovenian
-  'lit': 'lt', // Lithuanian
-  'lav': 'lv', // Latvian
-  'est': 'et', // Estonian
-  'kat': 'ka', // Georgian
-  'hye': 'hy', // Armenian
-  'aze': 'az', // Azerbaijani
-  'kaz': 'kk', // Kazakh
-  'uzb': 'uz', // Uzbek
-  'heb': 'he', // Hebrew
-  'ell': 'el', // Greek
-  'ben': 'bn', // Bengali
-  'tel': 'te', // Telugu
-  'tam': 'ta', // Tamil
-  'mar': 'mr', // Marathi
-  'urd': 'ur', // Urdu
-  'fas': 'fa', // Persian
-  'pus': 'ps', // Pashto
-  'msa': 'ms', // Malay
-  'fil': 'tl', // Filipino
-  'und': '??', // Undetermined
+// Initialize fastText model (will be loaded lazily)
+let fastTextModel: any = null;
+
+// Load fastText model
+async function loadFastTextModel() {
+  if (!fastTextModel) {
+    fastTextModel = new FastText();
+    await fastTextModel.loadModel();
+  }
+  return fastTextModel;
+}
+
+// Map fastText language codes to 2-letter ISO 639-1 codes
+const FASTTEXT_TO_ISO_MAP: Record<string, string> = {
+  '__label__en': 'en', // English
+  '__label__es': 'es', // Spanish
+  '__label__fr': 'fr', // French
+  '__label__de': 'de', // German
+  '__label__it': 'it', // Italian
+  '__label__pt': 'pt', // Portuguese
+  '__label__ru': 'ru', // Russian
+  '__label__ja': 'ja', // Japanese
+  '__label__ko': 'ko', // Korean
+  '__label__zh': 'zh', // Chinese
+  '__label__ar': 'ar', // Arabic
+  '__label__hi': 'hi', // Hindi
+  '__label__tr': 'tr', // Turkish
+  '__label__nl': 'nl', // Dutch
+  '__label__pl': 'pl', // Polish
+  '__label__sv': 'sv', // Swedish
+  '__label__da': 'da', // Danish
+  '__label__no': 'no', // Norwegian
+  '__label__fi': 'fi', // Finnish
+  '__label__cs': 'cs', // Czech
+  '__label__hu': 'hu', // Hungarian
+  '__label__ro': 'ro', // Romanian
+  '__label__bg': 'bg', // Bulgarian
+  '__label__hr': 'hr', // Croatian
+  '__label__sk': 'sk', // Slovak
+  '__label__sl': 'sl', // Slovenian
+  '__label__et': 'et', // Estonian
+  '__label__lv': 'lv', // Latvian
+  '__label__lt': 'lt', // Lithuanian
+  '__label__el': 'el', // Greek
+  '__label__he': 'he', // Hebrew
+  '__label__th': 'th', // Thai
+  '__label__vi': 'vi', // Vietnamese
+  '__label__id': 'id', // Indonesian
+  '__label__ms': 'ms', // Malay
+  '__label__tl': 'tl', // Filipino
+  '__label__fa': 'fa', // Persian
+  '__label__ur': 'ur', // Urdu
+  '__label__bn': 'bn', // Bengali
+  '__label__ta': 'ta', // Tamil
+  '__label__te': 'te', // Telugu
+  '__label__mr': 'mr', // Marathi
+  '__label__gu': 'gu', // Gujarati
+  '__label__kn': 'kn', // Kannada
+  '__label__ml': 'ml', // Malayalam
+  '__label__pa': 'pa', // Punjabi
+  '__label__uk': 'uk', // Ukrainian
+  '__label__be': 'be', // Belarusian
+  '__label__ka': 'ka', // Georgian
+  '__label__hy': 'hy', // Armenian
+  '__label__az': 'az', // Azerbaijani
+  '__label__kk': 'kk', // Kazakh
+  '__label__ky': 'ky', // Kyrgyz
+  '__label__uz': 'uz', // Uzbek
+  '__label__tg': 'tg', // Tajik
+  '__label__mn': 'mn', // Mongolian
 };
 
 export interface LanguageDetectionResult {
   language: string; // 2-letter code
   confidence: 'high' | 'medium' | 'low';
-  iso3Code: string; // 3-letter code from franc
+  fastTextScore: number; // confidence score from fastText
 }
 
-export function detectTitleLanguage(title: string): LanguageDetectionResult {
+export async function detectTitleLanguage(title: string): Promise<LanguageDetectionResult> {
   // Clean title - remove emojis and excessive punctuation but keep meaningful text
   const cleanTitle = title
     .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, ' ') // Remove emojis
     .replace(/[|\\\/]/g, ' ') // Replace separators with spaces
+    .replace(/\s+/g, ' ') // Normalize whitespace
     .trim();
 
-  // Franc needs at least some text to work with
+  // FastText needs at least some text to work with
   if (cleanTitle.length < 3) {
     return {
       language: '??',
       confidence: 'low',
-      iso3Code: 'und'
+      fastTextScore: 0
     };
   }
 
-  // Detect language using franc
-  const detected = franc(cleanTitle, { minLength: 3 });
+  try {
+    // Load fastText model and detect language
+    const model = await loadFastTextModel();
+    const predictions = await model.predict(cleanTitle, 1);
 
-  // Determine confidence based on text length and complexity
-  let confidence: 'high' | 'medium' | 'low' = 'medium';
-  if (cleanTitle.length < 10) {
-    confidence = 'low';
-  } else if (cleanTitle.length > 30 && /\s/.test(cleanTitle)) {
-    confidence = 'high';
+    if (!predictions || predictions.length === 0) {
+      return {
+        language: '??',
+        confidence: 'low',
+        fastTextScore: 0
+      };
+    }
+
+    const prediction = predictions[0];
+    const fastTextLabel = prediction.label;
+    const score = prediction.value;
+
+    // Map fastText label to 2-letter ISO code
+    const iso2Code = FASTTEXT_TO_ISO_MAP[fastTextLabel] || '??';
+
+    // Determine confidence based on fastText score and text characteristics
+    let confidence: 'high' | 'medium' | 'low' = 'low';
+    if (score > 0.8 && cleanTitle.length > 15) {
+      confidence = 'high';
+    } else if (score > 0.5 && cleanTitle.length > 5) {
+      confidence = 'medium';
+    }
+
+    return {
+      language: iso2Code,
+      confidence,
+      fastTextScore: score
+    };
+  } catch (error) {
+    console.error('FastText detection failed:', error);
+    return {
+      language: '??',
+      confidence: 'low',
+      fastTextScore: 0
+    };
   }
-
-  // Map to 2-letter code
-  const iso2Code = ISO_CODE_MAP[detected] || '??';
-
-  return {
-    language: iso2Code,
-    confidence,
-    iso3Code: detected
-  };
 }
 
 // Batch detection for multiple titles
-export function detectLanguagesBatch(titles: string[]): LanguageDetectionResult[] {
-  return titles.map(title => detectTitleLanguage(title));
+export async function detectLanguagesBatch(titles: string[]): Promise<LanguageDetectionResult[]> {
+  const results: LanguageDetectionResult[] = [];
+
+  // Load the model once for all detections
+  await loadFastTextModel();
+
+  for (const title of titles) {
+    const result = await detectTitleLanguage(title);
+    results.push(result);
+  }
+
+  return results;
 }
 
 // Get language statistics from detection results
