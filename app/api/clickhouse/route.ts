@@ -861,6 +861,8 @@ async function getAllVideos(host: string, headers: any, database: string, limit:
     const sortField = validSortFields.includes(sort) ? sort : 'added_at';
     const sortDir = sortDirection === 'asc' ? 'ASC' : 'DESC';
 
+    console.log(`Final sort field: ${sortField}, Direction: ${sortDir}`);
+
     // First get total count
     const countQuery = `SELECT count() as total FROM ${database}.videos ${whereClause}`;
 
@@ -914,6 +916,8 @@ async function getAllVideos(host: string, headers: any, database: string, limit:
       LIMIT ${limit} OFFSET ${offset}
       FORMAT JSONEachRow
     `;
+
+    console.log(`Executing SQL query: ${query.trim()}`);
 
     const response = await fetch(host, {
       method: 'POST',

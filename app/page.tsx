@@ -2120,11 +2120,11 @@ https://www.youtube.com/shorts/abc123"
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                           <button
-                            onClick={() => handleExplorerSort('views')}
+                            onClick={() => handleExplorerSort('view_count')}
                             className="flex items-center gap-1 hover:text-white transition-colors"
                           >
                             Views
-                            {explorerSort.field === 'views' && (
+                            {explorerSort.field === 'view_count' && (
                               <span>{explorerSort.direction === 'desc' ? '↓' : '↑'}</span>
                             )}
                           </button>
