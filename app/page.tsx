@@ -2107,13 +2107,35 @@ https://www.youtube.com/shorts/abc123"
                             )}
                           </button>
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider text-center">
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider text-center">
                           <button
-                            onClick={() => handleExplorerSort('embedding_dimensions')}
+                            onClick={() => handleExplorerSort('has_768d')}
                             className="flex items-center gap-1 hover:text-white transition-colors mx-auto"
                           >
-                            Embeddings
-                            {explorerSort.field === 'embedding_dimensions' && (
+                            768D
+                            {explorerSort.field === 'has_768d' && (
+                              <span>{explorerSort.direction === 'desc' ? '↓' : '↑'}</span>
+                            )}
+                          </button>
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider text-center">
+                          <button
+                            onClick={() => handleExplorerSort('has_1536d')}
+                            className="flex items-center gap-1 hover:text-white transition-colors mx-auto"
+                          >
+                            1536D
+                            {explorerSort.field === 'has_1536d' && (
+                              <span>{explorerSort.direction === 'desc' ? '↓' : '↑'}</span>
+                            )}
+                          </button>
+                        </th>
+                        <th className="px-2 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider text-center">
+                          <button
+                            onClick={() => handleExplorerSort('has_3072d')}
+                            className="flex items-center gap-1 hover:text-white transition-colors mx-auto"
+                          >
+                            3072D
+                            {explorerSort.field === 'has_3072d' && (
                               <span>{explorerSort.direction === 'desc' ? '↓' : '↑'}</span>
                             )}
                           </button>
@@ -2170,28 +2192,38 @@ https://www.youtube.com/shorts/abc123"
                               {video.channel_title || 'Unknown'}
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              {video.embedding_length > 0 ? (
-                                <>
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-900/50 text-green-400 border border-green-800/50">
-                                    ✅ Available
-                                  </span>
-                                  <span className="text-xs text-gray-500">
-                                    {video.embedding_dimensions}D
-                                  </span>
-                                  {video.embedding_model && (
-                                    <span className="text-xs text-gray-600 truncate max-w-24" title={video.embedding_model}>
-                                      {video.embedding_model}
-                                    </span>
-                                  )}
-                                </>
-                              ) : (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-900/50 text-red-400 border border-red-800/50">
-                                  ❌ Missing
-                                </span>
-                              )}
-                            </div>
+                          <td className="px-2 py-4 text-center">
+                            {video.has_768d ? (
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-900/50 text-green-400 border border-green-800/50">
+                                ✓
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-800/50 text-gray-600">
+                                ✗
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-2 py-4 text-center">
+                            {video.has_1536d ? (
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-900/50 text-blue-400 border border-blue-800/50">
+                                ✓
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-800/50 text-gray-600">
+                                ✗
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-2 py-4 text-center">
+                            {video.has_3072d ? (
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-purple-900/50 text-purple-400 border border-purple-800/50">
+                                ✓
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-800/50 text-gray-600">
+                                ✗
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-400">
                             {video.views ? video.views.toLocaleString() : 'N/A'}

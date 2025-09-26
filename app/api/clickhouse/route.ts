@@ -857,15 +857,21 @@ async function getAllVideos(host: string, headers: any, database: string, limit:
     }
 
     // Build ORDER BY clause
-    const validSortFields = ['added_at', 'title', 'view_count', 'like_count', 'duration', 'channel_title', 'embedding_dimensions', 'url'];
+    const validSortFields = ['added_at', 'title', 'view_count', 'like_count', 'duration', 'channel_title', 'embedding_dimensions', 'url', 'has_768d', 'has_1536d', 'has_3072d'];
     const sortField = validSortFields.includes(sort) ? sort : 'added_at';
     const sortDir = sortDirection === 'asc' ? 'ASC' : 'DESC';
 
-    // Special handling for embedding_dimensions to sort Missing vs Available properly
+    // Special handling for computed fields and special sorting
     let orderByClause;
     if (sortField === 'embedding_dimensions') {
       // For embeddings: ASC = Missing first (NULL/0 first), DESC = Available first (with dimensions)
       orderByClause = `ORDER BY length(embedding) ${sortDir}, embedding_dimensions ${sortDir}`;
+    } else if (sortField === 'has_768d') {
+      orderByClause = `ORDER BY (length(embedding) > 0 AND embedding_dimensions = 768) ${sortDir}`;
+    } else if (sortField === 'has_1536d') {
+      orderByClause = `ORDER BY (length(embedding) > 0 AND embedding_dimensions = 1536) ${sortDir}`;
+    } else if (sortField === 'has_3072d') {
+      orderByClause = `ORDER BY (length(embedding) > 0 AND embedding_dimensions = 3072) ${sortDir}`;
     } else {
       orderByClause = `ORDER BY ${sortField} ${sortDir}`;
     }
@@ -959,6 +965,12 @@ async function getAllVideos(host: string, headers: any, database: string, limit:
           video.embedding_status = video.embedding_length > 0
             ? `${video.embedding_dimensions || video.embedding_length}D (${video.embedding_model || 'Unknown'})`
             : 'No embedding';
+
+          // Add separate embedding type flags
+          video.has_768d = video.embedding_length > 0 && video.embedding_dimensions === 768;
+          video.has_1536d = video.embedding_length > 0 && video.embedding_dimensions === 1536;
+          video.has_3072d = video.embedding_length > 0 && video.embedding_dimensions === 3072;
+
           return video;
         } catch (e) {
           console.error('Failed to parse video line:', line, e);
