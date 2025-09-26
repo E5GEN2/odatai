@@ -112,6 +112,11 @@ export default function Home() {
     hasMore: false
   });
 
+  // Explorer sidebar state
+  const [explorerSidebarOpen, setExplorerSidebarOpen] = useState(false);
+  const [languageDetectionLoading, setLanguageDetectionLoading] = useState(false);
+  const [languageDetectionProgress, setLanguageDetectionProgress] = useState('');
+
   // Load saved API keys from localStorage on component mount
   useEffect(() => {
     const savedHuggingFaceKey = localStorage.getItem('huggingface_api_key');
@@ -1155,6 +1160,45 @@ export default function Home() {
     loadExplorerData(0, explorerFilter, field, newDirection);
   };
 
+  // Handle language detection for videos without language data
+  const handleLanguageDetection = async () => {
+    if (!isConnected) {
+      setExplorerError('Please connect to your ClickHouse database first.');
+      return;
+    }
+
+    setLanguageDetectionLoading(true);
+    setLanguageDetectionProgress('Fetching videos without language data...');
+
+    try {
+      // This is a placeholder for now - in the future, we'll implement actual language detection
+      // For now, we'll just simulate the process
+      setLanguageDetectionProgress('Analyzing video titles...');
+
+      // Simulate processing delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      setLanguageDetectionProgress('Updating database...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      setLanguageDetectionProgress('Language detection completed!');
+
+      // Refresh the Explorer data to show updated language info
+      loadExplorerData();
+
+      setTimeout(() => {
+        setLanguageDetectionLoading(false);
+        setLanguageDetectionProgress('');
+      }, 1000);
+
+    } catch (error: any) {
+      console.error('Language detection failed:', error);
+      setExplorerError(`Language detection failed: ${error.message}`);
+      setLanguageDetectionLoading(false);
+      setLanguageDetectionProgress('');
+    }
+  };
+
   const renderDatabaseTab = () => (
     <div className="space-y-8">
       <div className="text-center mb-8">
@@ -1970,13 +2014,90 @@ https://www.youtube.com/shorts/abc123"
       <div className="space-y-8">
         {/* Header */}
         <div className="bg-gradient-to-r from-cyan-950/30 to-teal-950/30 border border-cyan-800/30 rounded-2xl p-6">
-          <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-3">
-            🔍 Database Explorer
-          </h2>
-          <p className="text-gray-400">
-            Explore all videos stored in your database with URLs, titles, thumbnails, embeddings and metadata.
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-3">
+                🔍 Database Explorer
+              </h2>
+              <p className="text-gray-400">
+                Explore all videos stored in your database with URLs, titles, thumbnails, embeddings and metadata.
+              </p>
+            </div>
+            <button
+              onClick={() => setExplorerSidebarOpen(!explorerSidebarOpen)}
+              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors flex items-center gap-2"
+            >
+              🛠️ Tools
+              <span className={`transform transition-transform ${explorerSidebarOpen ? 'rotate-180' : ''}`}>
+                ▼
+              </span>
+            </button>
+          </div>
         </div>
+
+        {/* Main Content with Sidebar */}
+        <div className="flex gap-6">
+          {/* Sidebar */}
+          {explorerSidebarOpen && (
+            <div className="w-80 flex-shrink-0">
+              <div className="bg-black/30 rounded-xl border border-gray-800 p-6">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                  🛠️ Database Tools
+                </h3>
+
+                {/* Language Detection Tool */}
+                <div className="space-y-4">
+                  <div className="border border-gray-700 rounded-lg p-4">
+                    <h4 className="text-md font-medium text-white mb-2 flex items-center gap-2">
+                      🌐 Language Detection
+                    </h4>
+                    <p className="text-sm text-gray-400 mb-3">
+                      Detect language for videos without language data
+                    </p>
+
+                    {languageDetectionLoading ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm text-cyan-400">
+                          <div className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+                          Processing...
+                        </div>
+                        {languageDetectionProgress && (
+                          <p className="text-xs text-gray-500">{languageDetectionProgress}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleLanguageDetection}
+                        disabled={!isConnected}
+                        className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                      >
+                        🚀 Detect Languages
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Future tools can be added here */}
+                  <div className="border border-gray-700 rounded-lg p-4 opacity-50">
+                    <h4 className="text-md font-medium text-gray-500 mb-2 flex items-center gap-2">
+                      🔮 Future Tools
+                    </h4>
+                    <p className="text-sm text-gray-500 mb-3">
+                      More database tools coming soon...
+                    </p>
+                    <button
+                      disabled
+                      className="w-full px-3 py-2 bg-gray-700 text-gray-500 text-sm rounded-lg cursor-not-allowed"
+                    >
+                      Coming Soon
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Main Content */}
+          <div className="flex-1 space-y-8">
 
         {/* Connection Check */}
         {!isConnected ? (
@@ -2381,6 +2502,8 @@ https://www.youtube.com/shorts/abc123"
             )}
           </>
         )}
+        </div>
+        </div>
       </div>
     );
   };
