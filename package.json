@@ -13,7 +13,7 @@
     "@types/three": "^0.180.0",
     "axios": "^1.12.1",
     "compromise": "^14.14.4",
-    "langdetect": "^0.2.1",
+    "franc-min": "^6.2.0",
     "ml-distance": "^4.0.1",
     "ml-kmeans": "^6.0.0",
     "natural": "^8.1.0",

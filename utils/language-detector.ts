@@ -1,7 +1,62 @@
-// Google langdetect for YouTube titles
-// Uses Google's language detection library ported to JavaScript
+// Franc-min Language Detection for YouTube titles
+// Uses franc-min for reliable language detection
 
-import { detect } from 'langdetect';
+import { franc } from 'franc-min';
+
+// Map 3-letter ISO 639-3 codes from franc to 2-letter ISO 639-1 codes
+const ISO_CODE_MAP: Record<string, string> = {
+  'eng': 'en', // English
+  'rus': 'ru', // Russian
+  'spa': 'es', // Spanish
+  'fra': 'fr', // French
+  'deu': 'de', // German
+  'ita': 'it', // Italian
+  'por': 'pt', // Portuguese
+  'nld': 'nl', // Dutch
+  'pol': 'pl', // Polish
+  'ukr': 'uk', // Ukrainian
+  'jpn': 'ja', // Japanese
+  'kor': 'ko', // Korean
+  'cmn': 'zh', // Chinese (Mandarin)
+  'ara': 'ar', // Arabic
+  'tur': 'tr', // Turkish
+  'hin': 'hi', // Hindi
+  'vie': 'vi', // Vietnamese
+  'tha': 'th', // Thai
+  'ind': 'id', // Indonesian
+  'swe': 'sv', // Swedish
+  'dan': 'da', // Danish
+  'nor': 'no', // Norwegian
+  'fin': 'fi', // Finnish
+  'ces': 'cs', // Czech
+  'hun': 'hu', // Hungarian
+  'ron': 'ro', // Romanian
+  'bul': 'bg', // Bulgarian
+  'srp': 'sr', // Serbian
+  'hrv': 'hr', // Croatian
+  'slk': 'sk', // Slovak
+  'slv': 'sl', // Slovenian
+  'lit': 'lt', // Lithuanian
+  'lav': 'lv', // Latvian
+  'est': 'et', // Estonian
+  'kat': 'ka', // Georgian
+  'hye': 'hy', // Armenian
+  'aze': 'az', // Azerbaijani
+  'kaz': 'kk', // Kazakh
+  'uzb': 'uz', // Uzbek
+  'heb': 'he', // Hebrew
+  'ell': 'el', // Greek
+  'ben': 'bn', // Bengali
+  'tel': 'te', // Telugu
+  'tam': 'ta', // Tamil
+  'mar': 'mr', // Marathi
+  'urd': 'ur', // Urdu
+  'fas': 'fa', // Persian
+  'pus': 'ps', // Pashto
+  'msa': 'ms', // Malay
+  'fil': 'tl', // Filipino
+  'und': '??', // Undetermined
+};
 
 export interface LanguageDetectionResult {
   language: string; // 2-letter code
@@ -17,7 +72,7 @@ export function detectTitleLanguage(title: string): LanguageDetectionResult {
     .replace(/\s+/g, ' ') // Normalize whitespace
     .trim();
 
-  // Language detector needs at least some text to work with
+  // Franc needs at least some text to work with
   if (cleanTitle.length < 3) {
     return {
       language: '??',
@@ -27,34 +82,34 @@ export function detectTitleLanguage(title: string): LanguageDetectionResult {
   }
 
   try {
-    // Detect language using Google's langdetect
-    const results = detect(cleanTitle);
+    // Detect language using franc
+    const detected = franc(cleanTitle, { minLength: 3 });
 
-    if (!results || results.length === 0) {
-      return {
-        language: '??',
-        confidence: 'low',
-        detectionScore: 0
-      };
+    // Map to 2-letter code
+    const iso2Code = ISO_CODE_MAP[detected] || '??';
+
+    // Determine confidence based on text length and content quality
+    let confidence: 'high' | 'medium' | 'low' = 'medium';
+    let detectionScore = 0.5;
+
+    if (cleanTitle.length < 10) {
+      confidence = 'low';
+      detectionScore = 0.3;
+    } else if (cleanTitle.length > 30 && /\s/.test(cleanTitle)) {
+      confidence = 'high';
+      detectionScore = 0.8;
     }
 
-    // Get the top prediction
-    const topPrediction = results[0];
-    const languageCode = topPrediction.lang;
-    const score = topPrediction.prob;
-
-    // Determine confidence based on score and text characteristics
-    let confidence: 'high' | 'medium' | 'low' = 'low';
-    if (score > 0.9 && cleanTitle.length > 15) {
-      confidence = 'high';
-    } else if (score > 0.7 && cleanTitle.length > 5) {
-      confidence = 'medium';
+    // If franc couldn't detect (returns 'und'), mark as unknown
+    if (detected === 'und' || iso2Code === '??') {
+      confidence = 'low';
+      detectionScore = 0;
     }
 
     return {
-      language: languageCode,
+      language: iso2Code,
       confidence,
-      detectionScore: score
+      detectionScore
     };
   } catch (error) {
     console.error('Language detection failed:', error);
