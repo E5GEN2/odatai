@@ -2140,6 +2140,17 @@ https://www.youtube.com/shorts/abc123"
                             )}
                           </button>
                         </th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider text-center">
+                          <button
+                            onClick={() => handleExplorerSort('language_detected')}
+                            className="flex items-center gap-1 hover:text-white transition-colors mx-auto"
+                          >
+                            Lang
+                            {explorerSort.field === 'language_detected' && (
+                              <span>{explorerSort.direction === 'desc' ? '↓' : '↑'}</span>
+                            )}
+                          </button>
+                        </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                           <button
                             onClick={() => handleExplorerSort('view_count')}
@@ -2224,6 +2235,11 @@ https://www.youtube.com/shorts/abc123"
                                 ✗
                               </span>
                             )}
+                          </td>
+                          <td className="px-3 py-4 text-center">
+                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-800/50 text-gray-300 border border-gray-700/50">
+                              {video.language_detected?.toUpperCase() || '??'}
+                            </span>
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-400">
                             {video.views ? video.views.toLocaleString() : 'N/A'}

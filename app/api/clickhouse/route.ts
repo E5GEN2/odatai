@@ -857,7 +857,7 @@ async function getAllVideos(host: string, headers: any, database: string, limit:
     }
 
     // Build ORDER BY clause
-    const validSortFields = ['added_at', 'title', 'view_count', 'like_count', 'duration', 'channel_title', 'embedding_dimensions', 'url', 'has_768d', 'has_1536d', 'has_3072d'];
+    const validSortFields = ['added_at', 'title', 'view_count', 'like_count', 'duration', 'channel_title', 'embedding_dimensions', 'url', 'has_768d', 'has_1536d', 'has_3072d', 'language_detected'];
     const sortField = validSortFields.includes(sort) ? sort : 'added_at';
     const sortDir = sortDirection === 'asc' ? 'ASC' : 'DESC';
 
