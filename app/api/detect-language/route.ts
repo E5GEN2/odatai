@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       while (processed < totalVideos) {
         const result = await client.query({
           query: `
-            SELECT video_id, title
+            SELECT id, title
             FROM ${database || 'default'}.videos
             WHERE language_detected IS NULL OR language_detected = ''
             LIMIT ${batchSize}
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
             query: `
               ALTER TABLE ${database || 'default'}.videos
               UPDATE language_detected = '${detection.language}'
-              WHERE video_id = '${video.video_id}'
+              WHERE id = '${video.id}'
             `,
             clickhouse_settings: {
               wait_end_of_query: 1
