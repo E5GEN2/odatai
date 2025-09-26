@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       const countResult = await client.query({
         query: `SELECT count() as total FROM youtube_videos WHERE language_detected IS NULL OR language_detected = ''`
       });
-      const countData = await countResult.json();
+      const countData = await countResult.json() as any;
       const totalVideos = countData.data[0]?.total || 0;
 
       if (totalVideos === 0) {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
           `
         });
 
-        const data = await result.json();
+        const data = await result.json() as any;
         const videos = data.data;
 
         if (videos.length === 0) break;
