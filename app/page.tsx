@@ -2089,7 +2089,15 @@ https://www.youtube.com/shorts/abc123"
                           </button>
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                          Channel
+                          <button
+                            onClick={() => handleExplorerSort('channel_title')}
+                            className="flex items-center gap-1 hover:text-white transition-colors"
+                          >
+                            Channel
+                            {explorerSort.field === 'channel_title' && (
+                              <span>{explorerSort.direction === 'desc' ? '↓' : '↑'}</span>
+                            )}
+                          </button>
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider text-center">
                           Embeddings
@@ -2142,8 +2150,8 @@ https://www.youtube.com/shorts/abc123"
                             </div>
                           </td>
                           <td className="px-4 py-4 text-sm text-gray-300 max-w-xs">
-                            <div className="truncate" title={video.channel_name}>
-                              {video.channel_name || 'Unknown'}
+                            <div className="truncate" title={video.channel_title}>
+                              {video.channel_title || 'Unknown'}
                             </div>
                           </td>
                           <td className="px-4 py-4 text-center">
