@@ -861,6 +861,15 @@ async function getAllVideos(host: string, headers: any, database: string, limit:
     const sortField = validSortFields.includes(sort) ? sort : 'added_at';
     const sortDir = sortDirection === 'asc' ? 'ASC' : 'DESC';
 
+    // Special handling for embedding_dimensions to sort Missing vs Available properly
+    let orderByClause;
+    if (sortField === 'embedding_dimensions') {
+      // For embeddings: ASC = Missing first (NULL/0 first), DESC = Available first (with dimensions)
+      orderByClause = `ORDER BY length(embedding) ${sortDir}, embedding_dimensions ${sortDir}`;
+    } else {
+      orderByClause = `ORDER BY ${sortField} ${sortDir}`;
+    }
+
     console.log(`Final sort field: ${sortField}, Direction: ${sortDir}`);
 
     // First get total count
@@ -912,7 +921,7 @@ async function getAllVideos(host: string, headers: any, database: string, limit:
         updated_at
       FROM ${database}.videos
       ${whereClause}
-      ORDER BY ${sortField} ${sortDir}
+      ${orderByClause}
       LIMIT ${limit} OFFSET ${offset}
       FORMAT JSONEachRow
     `;
