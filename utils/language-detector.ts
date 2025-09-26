@@ -1,84 +1,23 @@
-// FastText Language Detection for YouTube titles
-// Uses Facebook AI's fastText for accurate language identification
+// VS Code Language Detection for YouTube titles
+// Uses VS Code's language detection library (based on fastText)
 
-import FastText from 'fasttext.js';
+import { ModelOperations } from '@vscode/vscode-languagedetection';
 
-// Initialize fastText model (will be loaded lazily)
-let fastTextModel: any = null;
+// Initialize language detection model (will be loaded lazily)
+let languageDetector: ModelOperations | null = null;
 
-// Load fastText model
-async function loadFastTextModel() {
-  if (!fastTextModel) {
-    fastTextModel = new FastText();
-    await fastTextModel.loadModel();
+// Load language detection model
+async function loadLanguageDetector() {
+  if (!languageDetector) {
+    languageDetector = new ModelOperations();
   }
-  return fastTextModel;
+  return languageDetector;
 }
-
-// Map fastText language codes to 2-letter ISO 639-1 codes
-const FASTTEXT_TO_ISO_MAP: Record<string, string> = {
-  '__label__en': 'en', // English
-  '__label__es': 'es', // Spanish
-  '__label__fr': 'fr', // French
-  '__label__de': 'de', // German
-  '__label__it': 'it', // Italian
-  '__label__pt': 'pt', // Portuguese
-  '__label__ru': 'ru', // Russian
-  '__label__ja': 'ja', // Japanese
-  '__label__ko': 'ko', // Korean
-  '__label__zh': 'zh', // Chinese
-  '__label__ar': 'ar', // Arabic
-  '__label__hi': 'hi', // Hindi
-  '__label__tr': 'tr', // Turkish
-  '__label__nl': 'nl', // Dutch
-  '__label__pl': 'pl', // Polish
-  '__label__sv': 'sv', // Swedish
-  '__label__da': 'da', // Danish
-  '__label__no': 'no', // Norwegian
-  '__label__fi': 'fi', // Finnish
-  '__label__cs': 'cs', // Czech
-  '__label__hu': 'hu', // Hungarian
-  '__label__ro': 'ro', // Romanian
-  '__label__bg': 'bg', // Bulgarian
-  '__label__hr': 'hr', // Croatian
-  '__label__sk': 'sk', // Slovak
-  '__label__sl': 'sl', // Slovenian
-  '__label__et': 'et', // Estonian
-  '__label__lv': 'lv', // Latvian
-  '__label__lt': 'lt', // Lithuanian
-  '__label__el': 'el', // Greek
-  '__label__he': 'he', // Hebrew
-  '__label__th': 'th', // Thai
-  '__label__vi': 'vi', // Vietnamese
-  '__label__id': 'id', // Indonesian
-  '__label__ms': 'ms', // Malay
-  '__label__tl': 'tl', // Filipino
-  '__label__fa': 'fa', // Persian
-  '__label__ur': 'ur', // Urdu
-  '__label__bn': 'bn', // Bengali
-  '__label__ta': 'ta', // Tamil
-  '__label__te': 'te', // Telugu
-  '__label__mr': 'mr', // Marathi
-  '__label__gu': 'gu', // Gujarati
-  '__label__kn': 'kn', // Kannada
-  '__label__ml': 'ml', // Malayalam
-  '__label__pa': 'pa', // Punjabi
-  '__label__uk': 'uk', // Ukrainian
-  '__label__be': 'be', // Belarusian
-  '__label__ka': 'ka', // Georgian
-  '__label__hy': 'hy', // Armenian
-  '__label__az': 'az', // Azerbaijani
-  '__label__kk': 'kk', // Kazakh
-  '__label__ky': 'ky', // Kyrgyz
-  '__label__uz': 'uz', // Uzbek
-  '__label__tg': 'tg', // Tajik
-  '__label__mn': 'mn', // Mongolian
-};
 
 export interface LanguageDetectionResult {
   language: string; // 2-letter code
   confidence: 'high' | 'medium' | 'low';
-  fastTextScore: number; // confidence score from fastText
+  detectionScore: number; // confidence score from detector
 }
 
 export async function detectTitleLanguage(title: string): Promise<LanguageDetectionResult> {
@@ -89,36 +28,37 @@ export async function detectTitleLanguage(title: string): Promise<LanguageDetect
     .replace(/\s+/g, ' ') // Normalize whitespace
     .trim();
 
-  // FastText needs at least some text to work with
+  // Language detector needs at least some text to work with
   if (cleanTitle.length < 3) {
     return {
       language: '??',
       confidence: 'low',
-      fastTextScore: 0
+      detectionScore: 0
     };
   }
 
   try {
-    // Load fastText model and detect language
-    const model = await loadFastTextModel();
-    const predictions = await model.predict(cleanTitle, 1);
+    // Load language detector and detect language
+    const detector = await loadLanguageDetector();
+    const result = await detector.runModel(cleanTitle);
 
-    if (!predictions || predictions.length === 0) {
+    if (!result || result.length === 0) {
       return {
         language: '??',
         confidence: 'low',
-        fastTextScore: 0
+        detectionScore: 0
       };
     }
 
-    const prediction = predictions[0];
-    const fastTextLabel = prediction.label;
-    const score = prediction.value;
+    // Get the top prediction
+    const topPrediction = result[0];
+    const languageCode = topPrediction.languageId;
+    const score = topPrediction.confidence;
 
-    // Map fastText label to 2-letter ISO code
-    const iso2Code = FASTTEXT_TO_ISO_MAP[fastTextLabel] || '??';
+    // Convert to 2-letter ISO code (VS Code already returns ISO codes)
+    const iso2Code = languageCode.length === 2 ? languageCode : '??';
 
-    // Determine confidence based on fastText score and text characteristics
+    // Determine confidence based on score and text characteristics
     let confidence: 'high' | 'medium' | 'low' = 'low';
     if (score > 0.8 && cleanTitle.length > 15) {
       confidence = 'high';
@@ -129,14 +69,14 @@ export async function detectTitleLanguage(title: string): Promise<LanguageDetect
     return {
       language: iso2Code,
       confidence,
-      fastTextScore: score
+      detectionScore: score
     };
   } catch (error) {
-    console.error('FastText detection failed:', error);
+    console.error('Language detection failed:', error);
     return {
       language: '??',
       confidence: 'low',
-      fastTextScore: 0
+      detectionScore: 0
     };
   }
 }
@@ -146,7 +86,7 @@ export async function detectLanguagesBatch(titles: string[]): Promise<LanguageDe
   const results: LanguageDetectionResult[] = [];
 
   // Load the model once for all detections
-  await loadFastTextModel();
+  await loadLanguageDetector();
 
   for (const title of titles) {
     const result = await detectTitleLanguage(title);
