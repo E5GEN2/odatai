@@ -2172,7 +2172,7 @@ https://www.youtube.com/shorts/abc123"
                           </td>
                           <td className="px-4 py-4 text-center">
                             <div className="flex flex-col items-center gap-1">
-                              {video.embedding ? (
+                              {video.embedding_length > 0 ? (
                                 <>
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-900/50 text-green-400 border border-green-800/50">
                                     ✅ Available
