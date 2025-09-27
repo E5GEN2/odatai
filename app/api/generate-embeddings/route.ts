@@ -111,9 +111,11 @@ export async function POST(request: NextRequest) {
                   throw new Error('Hugging Face API key required for HuggingFace embeddings');
                 }
                 const results = await processYouTubeTitlesWithProgress(titles, {
-                  model: embeddingConfig.model || 'BAAI/bge-base-en-v1.5',
-                  apiKey: apiKeys.huggingFaceApiKey,
-                  dimensions: embeddingConfig.dimensions || 768
+                  config: {
+                    model: embeddingConfig.model || 'BAAI/bge-base-en-v1.5',
+                    apiKey: apiKeys.huggingFaceApiKey,
+                    dimensions: embeddingConfig.dimensions || 768
+                  }
                 });
                 embeddings = results.embeddings;
               }
