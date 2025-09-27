@@ -32,10 +32,9 @@ export async function POST(request: NextRequest) {
     if (action === 'clear') {
       console.log('[EMBEDDINGS API] Clearing embeddings:', embeddingConfig);
 
-      // Clear embeddings based on dimension (all stored in single 'embedding' column)
-      const clearQuery = embeddingConfig.dimensions
-        ? `ALTER TABLE ${database || 'default'}.videos UPDATE embedding = [], embedding_model = NULL, embedding_dimensions = NULL, embedding_generated_at = NULL WHERE embedding_dimensions = ${embeddingConfig.dimensions}`
-        : `ALTER TABLE ${database || 'default'}.videos UPDATE embedding = [], embedding_model = NULL, embedding_dimensions = NULL, embedding_generated_at = NULL WHERE 1 = 1`;
+      // Clear embeddings for specific dimension column
+      const embeddingColumn = `embedding_${embeddingConfig.dimensions}d`;
+      const clearQuery = `ALTER TABLE ${database || 'default'}.videos UPDATE ${embeddingColumn} = [] WHERE 1 = 1`;
 
       console.log('[EMBEDDINGS API] Clear query:', clearQuery);
 
@@ -54,14 +53,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'generate') {
-      // The database uses a single 'embedding' column for all dimensions
-      const embeddingColumn = 'embedding';
+      // Use dedicated column for this embedding dimension
+      const embeddingColumn = `embedding_${embeddingConfig.dimensions}d`;
 
       console.log('[EMBEDDINGS API] Target column:', embeddingColumn);
       console.log('[EMBEDDINGS API] Target dimensions:', embeddingConfig.dimensions);
 
-      // Count videos without embeddings OR with different dimensions than requested
-      const countQuery = `SELECT count() as total FROM ${database || 'default'}.videos WHERE (${embeddingColumn} IS NULL OR length(${embeddingColumn}) = 0) OR (embedding_dimensions != ${embeddingConfig.dimensions})`;
+      // Count videos without embeddings for this dimension
+      const countQuery = `SELECT count() as total FROM ${database || 'default'}.videos WHERE ${embeddingColumn} IS NULL OR length(${embeddingColumn}) = 0`;
       console.log('[EMBEDDINGS API] Count query:', countQuery);
 
       const countResult = await client.query({ query: countQuery });
@@ -100,11 +99,10 @@ export async function POST(request: NextRequest) {
 
             while (processed < totalVideos) {
               batchNumber++;
-                      const selectQuery = `
+              const selectQuery = `
                 SELECT id, title
                 FROM ${database || 'default'}.videos
-                WHERE (${embeddingColumn} IS NULL OR length(${embeddingColumn}) = 0)
-                   OR (embedding_dimensions != ${embeddingConfig.dimensions})
+                WHERE ${embeddingColumn} IS NULL OR length(${embeddingColumn}) = 0
                 LIMIT ${batchSize}
               `;
               console.log(`[EMBEDDINGS API] Batch ${batchNumber} query:`, selectQuery);
@@ -163,10 +161,7 @@ export async function POST(request: NextRequest) {
                   const updateQuery = `
                     ALTER TABLE ${database || 'default'}.videos
                     UPDATE
-                      ${embeddingColumn} = [${embedding.join(',')}],
-                      embedding_model = '${modelName}',
-                      embedding_dimensions = ${dimensions},
-                      embedding_generated_at = now()
+                      ${embeddingColumn} = [${embedding.join(',')}]
                     WHERE id = '${video.id}'
                   `;
 
