@@ -123,7 +123,14 @@ export default function Home() {
   const [embeddingConfig, setEmbeddingConfig] = useState({
     embeddingType: 'google', // 'google' or 'huggingface'
     model: 'BAAI/bge-base-en-v1.5',
-    dimensions: 768
+    dimensions: 3072, // Default to 3072D for Google
+    batchSize: 25,
+    timeout: 30000, // 30 seconds
+    batchDelay: 1000 // 1 second between batches
+  });
+  const [embeddingApiKeys, setEmbeddingApiKeys] = useState({
+    google: '',
+    huggingface: ''
   });
 
   // Load saved API keys from localStorage on component mount
@@ -1321,11 +1328,13 @@ export default function Home() {
       return;
     }
 
-    const requiredApiKey = embeddingConfig.embeddingType === 'google' ? googleApiKey : huggingFaceApiKey;
+    const requiredApiKey = embeddingConfig.embeddingType === 'google'
+      ? (embeddingApiKeys.google || googleApiKey)
+      : (embeddingApiKeys.huggingface || huggingFaceApiKey);
     const apiKeyType = embeddingConfig.embeddingType === 'google' ? 'Google' : 'HuggingFace';
 
     if (!requiredApiKey) {
-      setExplorerError(`Please set your ${apiKeyType} API key in the Data Mining tab first.`);
+      setExplorerError(`Please enter your ${apiKeyType} API key in the embedding tool.`);
       return;
     }
 
@@ -1343,8 +1352,8 @@ export default function Home() {
           action: 'generate',
           embeddingConfig,
           apiKeys: {
-            googleApiKey,
-            huggingFaceApiKey
+            googleApiKey: embeddingApiKeys.google || googleApiKey,
+            huggingFaceApiKey: embeddingApiKeys.huggingface || huggingFaceApiKey
           }
         }),
       });
@@ -2288,22 +2297,61 @@ https://www.youtube.com/shorts/abc123"
                       Generate embeddings for videos without embedding data
                     </p>
 
+                    {/* API Key Input */}
+                    <div className="mb-3">
+                      <label className="text-xs text-gray-400 mb-1 block">
+                        {embeddingConfig.embeddingType === 'google' ? 'Google' : 'HuggingFace'} API Key
+                      </label>
+                      <input
+                        type="password"
+                        value={embeddingConfig.embeddingType === 'google' ? embeddingApiKeys.google : embeddingApiKeys.huggingface}
+                        onChange={(e) => setEmbeddingApiKeys(prev => ({
+                          ...prev,
+                          [embeddingConfig.embeddingType]: e.target.value
+                        }))}
+                        placeholder={`Enter ${embeddingConfig.embeddingType === 'google' ? 'Google' : 'HuggingFace'} API key`}
+                        className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs"
+                        disabled={embeddingGenerationLoading}
+                      />
+                    </div>
+
                     {/* Embedding Type Selection */}
                     <div className="mb-3">
-                      <label className="text-xs text-gray-400 mb-1 block">Embedding Type</label>
+                      <label className="text-xs text-gray-400 mb-1 block">Provider</label>
                       <select
                         value={embeddingConfig.embeddingType}
                         onChange={(e) => setEmbeddingConfig(prev => ({
                           ...prev,
-                          embeddingType: e.target.value as 'google' | 'huggingface'
+                          embeddingType: e.target.value as 'google' | 'huggingface',
+                          dimensions: e.target.value === 'google' ? 3072 : 768
                         }))}
                         className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs"
                         disabled={embeddingGenerationLoading}
                       >
-                        <option value="google">Google Gemini (3072D)</option>
-                        <option value="huggingface">HuggingFace (768D/1536D)</option>
+                        <option value="google">Google Gemini</option>
+                        <option value="huggingface">HuggingFace</option>
                       </select>
                     </div>
+
+                    {/* Google Dimensions Selection */}
+                    {embeddingConfig.embeddingType === 'google' && (
+                      <div className="mb-3">
+                        <label className="text-xs text-gray-400 mb-1 block">Dimensions</label>
+                        <select
+                          value={embeddingConfig.dimensions}
+                          onChange={(e) => setEmbeddingConfig(prev => ({
+                            ...prev,
+                            dimensions: parseInt(e.target.value)
+                          }))}
+                          className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs"
+                          disabled={embeddingGenerationLoading}
+                        >
+                          <option value={768}>768D (text-embedding-004)</option>
+                          <option value={1536}>1536D (text-embedding-004)</option>
+                          <option value={3072}>3072D (gemini-embedding-001)</option>
+                        </select>
+                      </div>
+                    )}
 
                     {/* HuggingFace Model Selection */}
                     {embeddingConfig.embeddingType === 'huggingface' && (
@@ -2326,6 +2374,59 @@ https://www.youtube.com/shorts/abc123"
                       </div>
                     )}
 
+                    {/* Batch Size */}
+                    <div className="mb-3">
+                      <label className="text-xs text-gray-400 mb-1 block">Batch Size</label>
+                      <input
+                        type="number"
+                        value={embeddingConfig.batchSize}
+                        onChange={(e) => setEmbeddingConfig(prev => ({
+                          ...prev,
+                          batchSize: parseInt(e.target.value) || 25
+                        }))}
+                        min="1"
+                        max="100"
+                        className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs"
+                        disabled={embeddingGenerationLoading}
+                      />
+                    </div>
+
+                    {/* Timeout */}
+                    <div className="mb-3">
+                      <label className="text-xs text-gray-400 mb-1 block">Timeout (ms)</label>
+                      <input
+                        type="number"
+                        value={embeddingConfig.timeout}
+                        onChange={(e) => setEmbeddingConfig(prev => ({
+                          ...prev,
+                          timeout: parseInt(e.target.value) || 30000
+                        }))}
+                        min="5000"
+                        max="120000"
+                        step="1000"
+                        className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs"
+                        disabled={embeddingGenerationLoading}
+                      />
+                    </div>
+
+                    {/* Batch Delay */}
+                    <div className="mb-3">
+                      <label className="text-xs text-gray-400 mb-1 block">Delay Between Batches (ms)</label>
+                      <input
+                        type="number"
+                        value={embeddingConfig.batchDelay}
+                        onChange={(e) => setEmbeddingConfig(prev => ({
+                          ...prev,
+                          batchDelay: parseInt(e.target.value) || 1000
+                        }))}
+                        min="0"
+                        max="10000"
+                        step="100"
+                        className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs"
+                        disabled={embeddingGenerationLoading}
+                      />
+                    </div>
+
                     {embeddingGenerationLoading ? (
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-sm text-purple-400">
@@ -2333,7 +2434,9 @@ https://www.youtube.com/shorts/abc123"
                           Processing...
                         </div>
                         {embeddingGenerationProgress && (
-                          <p className="text-xs text-gray-500">{embeddingGenerationProgress}</p>
+                          <div className="text-xs text-gray-400 bg-gray-900/50 rounded p-2">
+                            {embeddingGenerationProgress}
+                          </div>
                         )}
                       </div>
                     ) : (

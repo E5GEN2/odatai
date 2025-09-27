@@ -71,12 +71,16 @@ export async function POST(request: NextRequest) {
           };
 
           try {
-            const batchSize = embeddingConfig.embeddingType === 'google' ? 25 : 50;
+            const batchSize = embeddingConfig.batchSize || 25;
+            const batchDelay = embeddingConfig.batchDelay || 1000;
             let processed = 0;
+            let batchNumber = 0;
+            const totalBatches = Math.ceil(totalVideos / batchSize);
 
-            sendProgress(0, totalVideos, 'Starting embedding generation...');
+            sendProgress(0, totalVideos, `Starting embedding generation... (${totalVideos} videos, ${totalBatches} batches)`);
 
             while (processed < totalVideos) {
+              batchNumber++;
               const result = await client.query({
                 query: `
                   SELECT id, title
@@ -91,7 +95,7 @@ export async function POST(request: NextRequest) {
 
               if (videos.length === 0) break;
 
-              sendProgress(processed, totalVideos, `Processing batch ${Math.floor(processed / batchSize) + 1}...`);
+              sendProgress(processed, totalVideos, `Batch ${batchNumber}/${totalBatches}: Fetching embeddings for ${videos.length} videos...`);
 
               const titles = videos.map((v: any) => v.title);
               let embeddings: number[][];
@@ -101,15 +105,17 @@ export async function POST(request: NextRequest) {
                 if (!apiKeys.googleApiKey) {
                   throw new Error('Google API key required for Google embeddings');
                 }
+                sendProgress(processed, totalVideos, `Batch ${batchNumber}/${totalBatches}: Calling Google API (${embeddingConfig.dimensions}D)...`);
                 embeddings = await getGoogleEmbeddings(titles, {
                   apiKey: apiKeys.googleApiKey,
-                  dimensions: 3072,
+                  dimensions: embeddingConfig.dimensions || 3072,
                   taskType: 'CLUSTERING'
                 });
               } else {
                 if (!apiKeys.huggingFaceApiKey) {
                   throw new Error('Hugging Face API key required for HuggingFace embeddings');
                 }
+                sendProgress(processed, totalVideos, `Batch ${batchNumber}/${totalBatches}: Calling HuggingFace API (${embeddingConfig.model})...`);
                 const results = await processYouTubeTitlesWithProgress(titles, {
                   config: {
                     model: embeddingConfig.model || 'BAAI/bge-base-en-v1.5',
@@ -120,6 +126,8 @@ export async function POST(request: NextRequest) {
                 embeddings = results.embeddings;
               }
 
+              sendProgress(processed, totalVideos, `Batch ${batchNumber}/${totalBatches}: Saving ${embeddings.length} embeddings to database...`);
+
               // Save embeddings to database
               for (let i = 0; i < videos.length; i++) {
                 const video = videos[i];
@@ -127,7 +135,9 @@ export async function POST(request: NextRequest) {
 
                 if (embedding && embedding.length > 0) {
                   const embeddingStr = JSON.stringify(embedding);
-                  const modelName = embeddingConfig.embeddingType === 'google' ? 'gemini-embedding-001' : embeddingConfig.model;
+                  const modelName = embeddingConfig.embeddingType === 'google'
+                    ? (embeddingConfig.dimensions === 3072 ? 'gemini-embedding-001' : 'text-embedding-004')
+                    : embeddingConfig.model;
                   const dimensions = embedding.length;
 
                   await client.command({
@@ -149,12 +159,18 @@ export async function POST(request: NextRequest) {
                 processed++;
 
                 if (processed % 10 === 0 || processed === totalVideos) {
-                  sendProgress(processed, totalVideos, `Generated embeddings for ${processed} of ${totalVideos} videos...`);
+                  sendProgress(processed, totalVideos, `Batch ${batchNumber}/${totalBatches}: Saved ${processed}/${totalVideos} videos`);
                 }
+              }
+
+              // Add delay between batches if not the last batch
+              if (processed < totalVideos && batchDelay > 0) {
+                sendProgress(processed, totalVideos, `Batch ${batchNumber}/${totalBatches} complete. Waiting ${batchDelay}ms before next batch...`);
+                await new Promise(resolve => setTimeout(resolve, batchDelay));
               }
             }
 
-            sendProgress(totalVideos, totalVideos, 'Embedding generation completed!');
+            sendProgress(totalVideos, totalVideos, `Embedding generation completed! Processed ${totalBatches} batches, generated ${totalVideos} embeddings.`);
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, processed, total: totalVideos })}\n\n`));
             controller.close();
           } catch (error: any) {
