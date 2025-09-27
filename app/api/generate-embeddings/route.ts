@@ -149,30 +149,31 @@ export async function POST(request: NextRequest) {
 
               sendProgress(processed, totalVideos, `Batch ${batchNumber}/${totalBatches}: Saving ${embeddings.length} embeddings to database...`);
 
-              // Save embeddings to database
+              // Save embeddings to database with mutations_sync for immediate completion
               for (let i = 0; i < videos.length; i++) {
                 const video = videos[i];
                 const embedding = embeddings[i];
 
                 if (embedding && embedding.length > 0) {
-                  const embeddingStr = JSON.stringify(embedding);
                   const modelName = embeddingConfig.embeddingType === 'google'
                     ? (embeddingConfig.dimensions === 3072 ? 'gemini-embedding-001' : 'text-embedding-004')
                     : embeddingConfig.model;
                   const dimensions = embedding.length;
 
+                  const updateQuery = `
+                    ALTER TABLE ${database || 'default'}.videos
+                    UPDATE
+                      ${embeddingColumn} = [${embedding.join(',')}],
+                      embedding_model = '${modelName}',
+                      embedding_dimensions = ${dimensions},
+                      embedding_generated_at = now()
+                    WHERE id = '${video.id}'
+                  `;
+
                   await client.command({
-                    query: `
-                      ALTER TABLE ${database || 'default'}.videos
-                      UPDATE
-                        ${embeddingColumn} = [${embedding.join(',')}],
-                        embedding_model = '${modelName}',
-                        embedding_dimensions = ${dimensions},
-                        embedding_generated_at = now()
-                      WHERE id = '${video.id}'
-                    `,
+                    query: updateQuery,
                     clickhouse_settings: {
-                      wait_end_of_query: 1
+                      mutations_sync: 2
                     }
                   });
                 }
