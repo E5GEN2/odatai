@@ -117,6 +117,15 @@ export default function Home() {
   const [languageDetectionLoading, setLanguageDetectionLoading] = useState(false);
   const [languageDetectionProgress, setLanguageDetectionProgress] = useState('');
 
+  // Embedding generation state
+  const [embeddingGenerationLoading, setEmbeddingGenerationLoading] = useState(false);
+  const [embeddingGenerationProgress, setEmbeddingGenerationProgress] = useState('');
+  const [embeddingConfig, setEmbeddingConfig] = useState({
+    embeddingType: 'google', // 'google' or 'huggingface'
+    model: 'BAAI/bge-base-en-v1.5',
+    dimensions: 768
+  });
+
   // Load saved API keys from localStorage on component mount
   useEffect(() => {
     const savedHuggingFaceKey = localStorage.getItem('huggingface_api_key');
@@ -1265,6 +1274,125 @@ export default function Home() {
     }
   };
 
+  // Handle embedding generation
+  const handleClearEmbeddings = async () => {
+    if (!isConnected) {
+      setExplorerError('Please connect to your ClickHouse database first.');
+      return;
+    }
+
+    const embeddingTypeName = embeddingConfig.embeddingType === 'google' ? 'Google (3072D)' :
+                              embeddingConfig.embeddingType === 'huggingface' ? 'HuggingFace' : 'All';
+
+    if (!confirm(`Are you sure you want to clear ${embeddingTypeName} embeddings? This will remove all generated embeddings of this type from the database.`)) {
+      return;
+    }
+
+    setEmbeddingGenerationLoading(true);
+    setEmbeddingGenerationProgress('Clearing embeddings...');
+
+    try {
+      const response = await axios.post('/api/generate-embeddings', {
+        ...clickhouseConfig,
+        action: 'clear',
+        embeddingConfig
+      });
+
+      if (response.data.success) {
+        setEmbeddingGenerationProgress('Embeddings cleared successfully!');
+        loadExplorerData();
+
+        setTimeout(() => {
+          setEmbeddingGenerationLoading(false);
+          setEmbeddingGenerationProgress('');
+        }, 1500);
+      }
+    } catch (error: any) {
+      console.error('Clear embeddings failed:', error);
+      setExplorerError(`Failed to clear embeddings: ${error.response?.data?.error || error.message}`);
+      setEmbeddingGenerationLoading(false);
+      setEmbeddingGenerationProgress('');
+    }
+  };
+
+  const handleEmbeddingGeneration = async () => {
+    if (!isConnected) {
+      setExplorerError('Please connect to your ClickHouse database first.');
+      return;
+    }
+
+    const requiredApiKey = embeddingConfig.embeddingType === 'google' ? googleApiKey : huggingFaceApiKey;
+    const apiKeyType = embeddingConfig.embeddingType === 'google' ? 'Google' : 'HuggingFace';
+
+    if (!requiredApiKey) {
+      setExplorerError(`Please set your ${apiKeyType} API key in the Data Mining tab first.`);
+      return;
+    }
+
+    setEmbeddingGenerationLoading(true);
+    setEmbeddingGenerationProgress('Starting embedding generation...');
+
+    try {
+      const response = await fetch('/api/generate-embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...clickhouseConfig,
+          action: 'generate',
+          embeddingConfig,
+          apiKeys: {
+            googleApiKey,
+            huggingFaceApiKey
+          }
+        }),
+      });
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const jsonStr = line.slice(6);
+              if (!jsonStr.trim()) continue;
+
+              const data = JSON.parse(jsonStr);
+
+              if (data.error) {
+                throw new Error(data.error);
+              }
+
+              if (data.done) {
+                setEmbeddingGenerationProgress(`Completed! Generated embeddings for ${data.processed} of ${data.total} videos.`);
+                loadExplorerData();
+                setTimeout(() => {
+                  setEmbeddingGenerationLoading(false);
+                  setEmbeddingGenerationProgress('');
+                }, 2000);
+              } else if (data.message) {
+                setEmbeddingGenerationProgress(`${data.message} (${data.percentage}%)`);
+              }
+            }
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Embedding generation failed:', error);
+      setExplorerError(`Embedding generation failed: ${error.message}`);
+      setEmbeddingGenerationLoading(false);
+      setEmbeddingGenerationProgress('');
+    }
+  };
+
   const renderDatabaseTab = () => (
     <div className="space-y-8">
       <div className="text-center mb-8">
@@ -2151,20 +2279,81 @@ https://www.youtube.com/shorts/abc123"
                     )}
                   </div>
 
-                  {/* Future tools can be added here */}
-                  <div className="border border-gray-700 rounded-lg p-4 opacity-50">
-                    <h4 className="text-md font-medium text-gray-500 mb-2 flex items-center gap-2">
-                      🔮 Future Tools
+                  {/* Embedding Generation Tool */}
+                  <div className="border border-gray-700 rounded-lg p-4">
+                    <h4 className="text-md font-medium text-white mb-2 flex items-center gap-2">
+                      🧠 Embedding Generation
                     </h4>
-                    <p className="text-sm text-gray-500 mb-3">
-                      More database tools coming soon...
+                    <p className="text-sm text-gray-400 mb-3">
+                      Generate embeddings for videos without embedding data
                     </p>
-                    <button
-                      disabled
-                      className="w-full px-3 py-2 bg-gray-700 text-gray-500 text-sm rounded-lg cursor-not-allowed"
-                    >
-                      Coming Soon
-                    </button>
+
+                    {/* Embedding Type Selection */}
+                    <div className="mb-3">
+                      <label className="text-xs text-gray-400 mb-1 block">Embedding Type</label>
+                      <select
+                        value={embeddingConfig.embeddingType}
+                        onChange={(e) => setEmbeddingConfig(prev => ({
+                          ...prev,
+                          embeddingType: e.target.value as 'google' | 'huggingface'
+                        }))}
+                        className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs"
+                        disabled={embeddingGenerationLoading}
+                      >
+                        <option value="google">Google Gemini (3072D)</option>
+                        <option value="huggingface">HuggingFace (768D/1536D)</option>
+                      </select>
+                    </div>
+
+                    {/* HuggingFace Model Selection */}
+                    {embeddingConfig.embeddingType === 'huggingface' && (
+                      <div className="mb-3">
+                        <label className="text-xs text-gray-400 mb-1 block">Model</label>
+                        <select
+                          value={embeddingConfig.model}
+                          onChange={(e) => setEmbeddingConfig(prev => ({
+                            ...prev,
+                            model: e.target.value,
+                            dimensions: e.target.value === 'BAAI/bge-large-en-v1.5' ? 1024 : 768
+                          }))}
+                          className="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs"
+                          disabled={embeddingGenerationLoading}
+                        >
+                          <option value="BAAI/bge-base-en-v1.5">BGE Base (768D)</option>
+                          <option value="BAAI/bge-large-en-v1.5">BGE Large (1024D)</option>
+                          <option value="BAAI/bge-small-en-v1.5">BGE Small (384D)</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {embeddingGenerationLoading ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm text-purple-400">
+                          <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+                          Processing...
+                        </div>
+                        {embeddingGenerationProgress && (
+                          <p className="text-xs text-gray-500">{embeddingGenerationProgress}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <button
+                          onClick={handleClearEmbeddings}
+                          disabled={!isConnected}
+                          className="w-full px-3 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                        >
+                          🗑️ Clear {embeddingConfig.embeddingType === 'google' ? 'Google' : 'HF'} Embeddings
+                        </button>
+                        <button
+                          onClick={handleEmbeddingGeneration}
+                          disabled={!isConnected}
+                          className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors"
+                        >
+                          🚀 Generate Embeddings
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

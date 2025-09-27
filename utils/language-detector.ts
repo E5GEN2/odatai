@@ -1,7 +1,5 @@
-// Google Cloud Translate Language Detection for YouTube titles
-// Uses Google's industry-leading language detection
-
-import { Translate } from '@google-cloud/translate/build/src/v2';
+// Smart Language Detection for YouTube titles
+// Free solution optimized for YouTube content
 
 export interface LanguageDetectionResult {
   language: string; // 2-letter code
@@ -9,129 +7,127 @@ export interface LanguageDetectionResult {
   detectionScore: number; // confidence score from detector
 }
 
-// Initialize Google Translate client (will use environment variables for auth)
-let translateClient: Translate | null = null;
+// Common language patterns for YouTube content
+const LANGUAGE_PATTERNS = {
+  // Cyrillic scripts
+  ru: /[\u0400-\u04FF]/,
+  uk: /[\u0400-\u04FF]/,
+  bg: /[\u0400-\u04FF]/,
+  sr: /[\u0400-\u04FF]/,
 
-function getTranslateClient(): Translate {
-  if (!translateClient) {
-    translateClient = new Translate();
-  }
-  return translateClient;
-}
-
-export async function detectTitleLanguage(title: string): Promise<LanguageDetectionResult> {
-  // Clean title - remove emojis and excessive punctuation but keep meaningful text
-  const cleanTitle = title
-    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, ' ') // Remove emojis
-    .replace(/[|\\\/]/g, ' ') // Replace separators with spaces
-    .replace(/\s+/g, ' ') // Normalize whitespace
-    .trim();
-
-  // Very short titles default to English
-  if (cleanTitle.length < 3) {
-    return {
-      language: 'en',
-      confidence: 'low',
-      detectionScore: 0.3
-    };
-  }
-
-  try {
-    const translate = getTranslateClient();
-
-    // Use Google Cloud Translate to detect language
-    const [detection] = await translate.detect(cleanTitle);
-
-    if (!detection || !detection.language) {
-      return {
-        language: 'en',
-        confidence: 'low',
-        detectionScore: 0.3
-      };
-    }
-
-    const language = detection.language;
-    const confidence = detection.confidence || 0.5;
-
-    // Convert confidence to our categories
-    let confidenceLevel: 'high' | 'medium' | 'low' = 'medium';
-    if (confidence > 0.8) {
-      confidenceLevel = 'high';
-    } else if (confidence < 0.5) {
-      confidenceLevel = 'low';
-    }
-
-    return {
-      language,
-      confidence: confidenceLevel,
-      detectionScore: confidence
-    };
-  } catch (error) {
-    console.error('Google Translate language detection failed:', error);
-
-    // Fallback to simple heuristics
-    return simpleLanguageDetection(cleanTitle);
-  }
-}
-
-// Simple fallback detection using character patterns
-function simpleLanguageDetection(text: string): LanguageDetectionResult {
-  // Cyrillic script detection
-  const cyrillicRatio = (text.match(/[\u0400-\u04FF]/g) || []).length / text.length;
-  if (cyrillicRatio > 0.3) {
-    return {
-      language: 'ru',
-      confidence: 'high',
-      detectionScore: 0.9
-    };
-  }
-
-  // CJK detection
-  const cjkRatio = (text.match(/[\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF]/g) || []).length / text.length;
-  if (cjkRatio > 0.3) {
-    // Simple heuristic: if it has hiragana/katakana, it's Japanese
-    if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) {
-      return {
-        language: 'ja',
-        confidence: 'high',
-        detectionScore: 0.9
-      };
-    }
-    return {
-      language: 'zh',
-      confidence: 'medium',
-      detectionScore: 0.7
-    };
-  }
+  // CJK scripts
+  zh: /[\u4E00-\u9FFF]/,
+  ja: /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/,
+  ko: /[\uAC00-\uD7AF]/,
 
   // Arabic script
-  const arabicRatio = (text.match(/[\u0600-\u06FF]/g) || []).length / text.length;
-  if (arabicRatio > 0.3) {
-    return {
-      language: 'ar',
-      confidence: 'high',
-      detectionScore: 0.9
-    };
+  ar: /[\u0600-\u06FF]/,
+  fa: /[\u0600-\u06FF]/,
+  ur: /[\u0600-\u06FF]/,
+
+  // Thai
+  th: /[\u0E00-\u0E7F]/,
+
+  // Hebrew
+  he: /[\u0590-\u05FF]/,
+
+  // Hindi/Devanagari
+  hi: /[\u0900-\u097F]/,
+};
+
+// Common English words that appear in YouTube titles
+const ENGLISH_INDICATORS = [
+  'the', 'and', 'for', 'with', 'how', 'to', 'in', 'on', 'at', 'of', 'is', 'are', 'was', 'were',
+  'best', 'top', 'new', 'first', 'last', 'full', 'vs', 'review', 'trailer', 'gameplay',
+  'tutorial', 'guide', 'tips', 'tricks', 'hack', 'mod', 'update', 'news', 'reaction',
+  'compilation', 'highlights', 'moments', 'funny', 'epic', 'fail', 'win', 'challenge'
+];
+
+// Common Spanish words
+const SPANISH_INDICATORS = [
+  'el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'en', 'con', 'por', 'para', 'como',
+  'que', 'qué', 'mi', 'tu', 'su', 'este', 'esta', 'estos', 'estas', 'mejor', 'nuevo', 'nueva'
+];
+
+// Common French words
+const FRENCH_INDICATORS = [
+  'le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'dans', 'avec', 'pour', 'sur', 'comme',
+  'que', 'qui', 'mon', 'ton', 'son', 'ce', 'cette', 'ces', 'meilleur', 'nouveau', 'nouvelle'
+];
+
+export function detectTitleLanguage(title: string): LanguageDetectionResult {
+  const cleanTitle = title
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, ' ')
+    .replace(/[|\\\/\(\)\[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  if (cleanTitle.length < 3) {
+    return { language: 'en', confidence: 'low', detectionScore: 0.3 };
   }
 
-  // Default to English
-  return {
-    language: 'en',
-    confidence: 'low',
-    detectionScore: 0.3
-  };
+  // 1. Check for obvious non-Latin scripts (highest confidence)
+  for (const [lang, pattern] of Object.entries(LANGUAGE_PATTERNS)) {
+    if (pattern.test(title)) {
+      // Special handling for Cyrillic - default to Russian unless specific indicators
+      if (lang === 'ru' && pattern === LANGUAGE_PATTERNS.ru) {
+        return { language: 'ru', confidence: 'high', detectionScore: 0.95 };
+      }
+      return { language: lang, confidence: 'high', detectionScore: 0.9 };
+    }
+  }
+
+  // 2. Word-based detection for Latin scripts
+  const words = cleanTitle.split(/\s+/).filter(w => w.length > 1);
+  const totalWords = words.length;
+
+  if (totalWords === 0) {
+    return { language: 'en', confidence: 'low', detectionScore: 0.3 };
+  }
+
+  // Count language indicators
+  const englishCount = words.filter(w => ENGLISH_INDICATORS.includes(w)).length;
+  const spanishCount = words.filter(w => SPANISH_INDICATORS.includes(w)).length;
+  const frenchCount = words.filter(w => FRENCH_INDICATORS.includes(w)).length;
+
+  const englishRatio = englishCount / totalWords;
+  const spanishRatio = spanishCount / totalWords;
+  const frenchRatio = frenchCount / totalWords;
+
+  // 3. Language-specific character patterns
+  const accentedChars = (cleanTitle.match(/[àáâãäåæçèéêëìíîïñòóôõöøùúûüý]/g) || []).length;
+  const accentRatio = accentedChars / cleanTitle.length;
+
+  // 4. Decision logic
+  if (englishRatio > 0.2) {
+    return { language: 'en', confidence: 'high', detectionScore: 0.8 + englishRatio };
+  }
+
+  if (spanishRatio > 0.15) {
+    return { language: 'es', confidence: 'medium', detectionScore: 0.7 + spanishRatio };
+  }
+
+  if (frenchRatio > 0.15) {
+    return { language: 'fr', confidence: 'medium', detectionScore: 0.7 + frenchRatio };
+  }
+
+  // Heavy accent usage suggests Romance language
+  if (accentRatio > 0.1) {
+    if (spanishRatio > frenchRatio) {
+      return { language: 'es', confidence: 'low', detectionScore: 0.5 };
+    } else {
+      return { language: 'fr', confidence: 'low', detectionScore: 0.5 };
+    }
+  }
+
+  // Default to English for YouTube (most common)
+  return { language: 'en', confidence: 'low', detectionScore: 0.4 };
 }
 
 // Batch detection for multiple titles
-export async function detectLanguagesBatch(titles: string[]): Promise<LanguageDetectionResult[]> {
-  const results: LanguageDetectionResult[] = [];
-
-  for (const title of titles) {
-    const result = await detectTitleLanguage(title);
-    results.push(result);
-  }
-
-  return results;
+export function detectLanguagesBatch(titles: string[]): LanguageDetectionResult[] {
+  return titles.map(title => detectTitleLanguage(title));
 }
 
 // Get language statistics from detection results
