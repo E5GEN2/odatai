@@ -77,9 +77,9 @@ export default function Home() {
 
   // ClickHouse Database state
   const [clickhouseConfig, setClickhouseConfig] = useState({
-    host: '',
+    host: 'https://trn0d6m9sp.germanywestcentral.azure.clickhouse.cloud:8443',
     username: 'default',
-    password: '',
+    password: 'S_4k5q3d98KIc',
     database: 'default'
   });
   const [isConnected, setIsConnected] = useState(false);

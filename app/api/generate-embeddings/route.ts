@@ -7,7 +7,15 @@ export async function POST(request: NextRequest) {
   try {
     const { host, username, password, database, action, embeddingConfig, apiKeys } = await request.json();
 
+    console.log('[EMBEDDINGS API] Request received:', {
+      action,
+      embeddingType: embeddingConfig?.embeddingType,
+      dimensions: embeddingConfig?.dimensions,
+      batchSize: embeddingConfig?.batchSize
+    });
+
     if (!host || !username || !password) {
+      console.error('[EMBEDDINGS API] Missing credentials');
       return NextResponse.json(
         { error: 'Missing database credentials' },
         { status: 400 }
@@ -22,7 +30,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (action === 'clear') {
-      // Clear embeddings based on embedding type
+      console.log('[EMBEDDINGS API] Clearing embeddings:', embeddingConfig);
+
       const clearQuery = embeddingConfig.embeddingType === 'google'
         ? `ALTER TABLE ${database || 'default'}.videos UPDATE embedding_3072d = NULL, embedding_model = NULL, embedding_dimensions = NULL, embedding_generated_at = NULL WHERE embedding_dimensions = 3072`
         : embeddingConfig.embeddingType === 'huggingface'
@@ -36,6 +45,7 @@ export async function POST(request: NextRequest) {
         }
       });
 
+      console.log('[EMBEDDINGS API] Clear completed');
       return NextResponse.json({
         success: true,
         message: 'Embedding data cleared successfully'
@@ -43,15 +53,33 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'generate') {
-      // Count videos without embeddings of the requested type
-      const embeddingColumn = embeddingConfig.embeddingType === 'google' ? 'embedding_3072d' :
-                             embeddingConfig.dimensions === 768 ? 'embedding_768d' : 'embedding_1536d';
+      // Determine embedding column based on dimensions
+      let embeddingColumn: string;
+      if (embeddingConfig.dimensions === 768) {
+        embeddingColumn = 'embedding_768d';
+      } else if (embeddingConfig.dimensions === 1536) {
+        embeddingColumn = 'embedding_1536d';
+      } else if (embeddingConfig.dimensions === 3072) {
+        embeddingColumn = 'embedding_3072d';
+      } else {
+        console.error('[EMBEDDINGS API] Invalid dimensions:', embeddingConfig.dimensions);
+        return NextResponse.json(
+          { error: `Invalid embedding dimensions: ${embeddingConfig.dimensions}` },
+          { status: 400 }
+        );
+      }
 
-      const countResult = await client.query({
-        query: `SELECT count() as total FROM ${database || 'default'}.videos WHERE ${embeddingColumn} IS NULL OR ${embeddingColumn} = []`
-      });
+      console.log('[EMBEDDINGS API] Target column:', embeddingColumn);
+
+      // Count videos without embeddings of the requested type
+      const countQuery = `SELECT count() as total FROM ${database || 'default'}.videos WHERE ${embeddingColumn} IS NULL OR length(${embeddingColumn}) = 0`;
+      console.log('[EMBEDDINGS API] Count query:', countQuery);
+
+      const countResult = await client.query({ query: countQuery });
       const countData = await countResult.json() as any;
       const totalVideos = countData.data[0]?.total || 0;
+
+      console.log('[EMBEDDINGS API] Videos needing embeddings:', totalVideos);
 
       if (totalVideos === 0) {
         return NextResponse.json({
@@ -66,6 +94,7 @@ export async function POST(request: NextRequest) {
       const stream = new ReadableStream({
         async start(controller) {
           const sendProgress = (processed: number, total: number, message: string) => {
+            console.log(`[EMBEDDINGS PROGRESS] ${processed}/${total} - ${message}`);
             const data = JSON.stringify({ processed, total, message, percentage: Math.round((processed / total) * 100) });
             controller.enqueue(encoder.encode(`data: ${data}\n\n`));
           };
@@ -77,18 +106,20 @@ export async function POST(request: NextRequest) {
             let batchNumber = 0;
             const totalBatches = Math.ceil(totalVideos / batchSize);
 
+            console.log(`[EMBEDDINGS API] Starting generation: ${totalVideos} videos, ${totalBatches} batches, ${batchSize} per batch`);
             sendProgress(0, totalVideos, `Starting embedding generation... (${totalVideos} videos, ${totalBatches} batches)`);
 
             while (processed < totalVideos) {
               batchNumber++;
-              const result = await client.query({
-                query: `
-                  SELECT id, title
-                  FROM ${database || 'default'}.videos
-                  WHERE ${embeddingColumn} IS NULL OR ${embeddingColumn} = []
-                  LIMIT ${batchSize}
-                `
-              });
+              const selectQuery = `
+                SELECT id, title
+                FROM ${database || 'default'}.videos
+                WHERE ${embeddingColumn} IS NULL OR length(${embeddingColumn}) = 0
+                LIMIT ${batchSize}
+              `;
+              console.log(`[EMBEDDINGS API] Batch ${batchNumber} query:`, selectQuery);
+
+              const result = await client.query({ query: selectQuery });
 
               const data = await result.json() as any;
               const videos = data.data;
@@ -170,10 +201,13 @@ export async function POST(request: NextRequest) {
               }
             }
 
+            console.log(`[EMBEDDINGS API] Generation complete! ${totalBatches} batches, ${totalVideos} embeddings`);
             sendProgress(totalVideos, totalVideos, `Embedding generation completed! Processed ${totalBatches} batches, generated ${totalVideos} embeddings.`);
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, processed, total: totalVideos })}\n\n`));
             controller.close();
           } catch (error: any) {
+            console.error('[EMBEDDINGS API] Stream error:', error);
+            console.error('[EMBEDDINGS API] Error stack:', error.stack);
             const errorData = JSON.stringify({ error: error.message });
             controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
             controller.close();
@@ -190,13 +224,19 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    console.error('[EMBEDDINGS API] Invalid action:', action);
     return NextResponse.json(
       { error: 'Invalid action. Use "clear" or "generate"' },
       { status: 400 }
     );
 
   } catch (error: any) {
-    console.error('Embedding generation error:', error);
+    console.error('[EMBEDDINGS API] Top-level error:', error);
+    console.error('[EMBEDDINGS API] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause
+    });
     return NextResponse.json(
       { error: error.message || 'Failed to process embedding generation' },
       { status: 500 }
