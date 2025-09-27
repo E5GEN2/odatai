@@ -1342,6 +1342,14 @@ export default function Home() {
     setEmbeddingGenerationProgress('Starting embedding generation...');
 
     try {
+      console.log('[EMBEDDING UI] Starting generation with config:', {
+        embeddingType: embeddingConfig.embeddingType,
+        dimensions: embeddingConfig.dimensions,
+        batchSize: embeddingConfig.batchSize,
+        hasGoogleKey: !!(embeddingApiKeys.google || googleApiKey),
+        hasHFKey: !!(embeddingApiKeys.huggingface || huggingFaceApiKey)
+      });
+
       const response = await fetch('/api/generate-embeddings', {
         method: 'POST',
         headers: {
@@ -1357,6 +1365,14 @@ export default function Home() {
           }
         }),
       });
+
+      console.log('[EMBEDDING UI] Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[EMBEDDING UI] HTTP Error:', response.status, errorText);
+        throw new Error(`Server error (${response.status}): ${errorText}`);
+      }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
