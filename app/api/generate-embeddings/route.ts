@@ -32,11 +32,12 @@ export async function POST(request: NextRequest) {
     if (action === 'clear') {
       console.log('[EMBEDDINGS API] Clearing embeddings:', embeddingConfig);
 
-      const clearQuery = embeddingConfig.embeddingType === 'google'
-        ? `ALTER TABLE ${database || 'default'}.videos UPDATE embedding_3072d = NULL, embedding_model = NULL, embedding_dimensions = NULL, embedding_generated_at = NULL WHERE embedding_dimensions = 3072`
-        : embeddingConfig.embeddingType === 'huggingface'
-        ? `ALTER TABLE ${database || 'default'}.videos UPDATE embedding_768d = NULL, embedding_1536d = NULL, embedding_model = NULL, embedding_dimensions = NULL, embedding_generated_at = NULL WHERE embedding_dimensions IN (768, 1536)`
-        : `ALTER TABLE ${database || 'default'}.videos UPDATE embedding_768d = NULL, embedding_1536d = NULL, embedding_3072d = NULL, embedding_model = NULL, embedding_dimensions = NULL, embedding_generated_at = NULL WHERE 1 = 1`;
+      // Clear embeddings based on dimension (all stored in single 'embedding' column)
+      const clearQuery = embeddingConfig.dimensions
+        ? `ALTER TABLE ${database || 'default'}.videos UPDATE embedding = [], embedding_model = NULL, embedding_dimensions = NULL, embedding_generated_at = NULL WHERE embedding_dimensions = ${embeddingConfig.dimensions}`
+        : `ALTER TABLE ${database || 'default'}.videos UPDATE embedding = [], embedding_model = NULL, embedding_dimensions = NULL, embedding_generated_at = NULL WHERE 1 = 1`;
+
+      console.log('[EMBEDDINGS API] Clear query:', clearQuery);
 
       await client.command({
         query: clearQuery,
@@ -53,26 +54,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'generate') {
-      // Determine embedding column based on dimensions
-      let embeddingColumn: string;
-      if (embeddingConfig.dimensions === 768) {
-        embeddingColumn = 'embedding_768d';
-      } else if (embeddingConfig.dimensions === 1536) {
-        embeddingColumn = 'embedding_1536d';
-      } else if (embeddingConfig.dimensions === 3072) {
-        embeddingColumn = 'embedding_3072d';
-      } else {
-        console.error('[EMBEDDINGS API] Invalid dimensions:', embeddingConfig.dimensions);
-        return NextResponse.json(
-          { error: `Invalid embedding dimensions: ${embeddingConfig.dimensions}` },
-          { status: 400 }
-        );
-      }
+      // The database uses a single 'embedding' column for all dimensions
+      const embeddingColumn = 'embedding';
 
       console.log('[EMBEDDINGS API] Target column:', embeddingColumn);
+      console.log('[EMBEDDINGS API] Target dimensions:', embeddingConfig.dimensions);
 
-      // Count videos without embeddings of the requested type
-      const countQuery = `SELECT count() as total FROM ${database || 'default'}.videos WHERE ${embeddingColumn} IS NULL OR length(${embeddingColumn}) = 0`;
+      // Count videos without embeddings OR with different dimensions than requested
+      const countQuery = `SELECT count() as total FROM ${database || 'default'}.videos WHERE (${embeddingColumn} IS NULL OR length(${embeddingColumn}) = 0) OR (embedding_dimensions != ${embeddingConfig.dimensions})`;
       console.log('[EMBEDDINGS API] Count query:', countQuery);
 
       const countResult = await client.query({ query: countQuery });
@@ -111,10 +100,11 @@ export async function POST(request: NextRequest) {
 
             while (processed < totalVideos) {
               batchNumber++;
-              const selectQuery = `
+                      const selectQuery = `
                 SELECT id, title
                 FROM ${database || 'default'}.videos
-                WHERE ${embeddingColumn} IS NULL OR length(${embeddingColumn}) = 0
+                WHERE (${embeddingColumn} IS NULL OR length(${embeddingColumn}) = 0)
+                   OR (embedding_dimensions != ${embeddingConfig.dimensions})
                 LIMIT ${batchSize}
               `;
               console.log(`[EMBEDDINGS API] Batch ${batchNumber} query:`, selectQuery);
